@@ -1,0 +1,350 @@
+/* ── DeepSeek Harness Native Design System Tokens & Aesthetics ── */
+
+/* 28px Tool Mic Button - Perfectly blended into DeepSeek Composer */
+.toolMicBtn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: var(--dsw-specific-selector, rgba(255, 255, 255, 0.06));
+  color: var(--dsw-alias-label-primary, #9ca3af);
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.toolMicBtn:hover {
+  background: var(--dsw-alias-interactive-bg-hover-solid, rgba(59, 130, 246, 0.15));
+  color: #3b82f6;
+}
+
+.toolMicBtnActive {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #ef4444 !important;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+  animation: pulseMic 1.5s infinite alternate;
+}
+
+@keyframes pulseMic {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  100% { transform: scale(1.05); opacity: 1; }
+}
+
+/* ── VoiceSpirit Integrated Top Ribbon (Directly Attached Above Composer) ── */
+.vsDockRibbon {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px;
+  margin-bottom: 6px;
+  background: #fbf9f4;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  box-sizing: border-box;
+  animation: slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:global([data-theme="dark"]) .vsDockRibbon {
+  background: #1e2025;
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes slideDown {
+  0% { transform: translateY(-6px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+.vsDockLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.vsDockRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.vsStatusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+}
+
+:global([data-theme="dark"]) .vsStatusPill {
+  color: #f3f4f6;
+}
+
+.vsStatusText {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.vsModelBadge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  color: #6b7280;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 2px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+
+:global([data-theme="dark"]) .vsModelBadge {
+  color: #9ca3af;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.vsWaveform {
+  display: flex;
+  align-items: center;
+  gap: 2.5px;
+  height: 20px;
+  padding: 0 4px;
+}
+
+.vsWaveBar {
+  width: 3px;
+  height: 4px;
+  border-radius: 2px;
+  transition: height 0.08s ease;
+}
+
+.vsWaveBarMic {
+  background: #10b981;
+}
+
+.vsWaveBarAI {
+  background: #3b82f6;
+}
+
+.vsHangupBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid #ef4444;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.vsHangupBtn:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+/* ── Native Hero Experience (Audio Orb & Bubbles) ── */
+.nativeHeroContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 16px;
+  gap: 16px;
+  animation: fadeInHero 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInHero {
+  0% { transform: translateY(10px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+.nativeOrbWrapper {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nativeOrbAmbient {
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  pointer-events: none;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.voiceOrb {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
+  box-shadow: 0 0 40px rgba(59, 130, 246, 0.5), inset 0 0 15px rgba(255, 255, 255, 0.4);
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: rotateOrb 12s linear infinite;
+  z-index: 1;
+}
+
+.voiceOrbListening {
+  background: linear-gradient(135deg, #10b981 0%, #06b6d4 50%, #3b82f6 100%);
+  box-shadow: 0 0 40px rgba(16, 185, 129, 0.5), inset 0 0 15px rgba(255, 255, 255, 0.4);
+}
+
+@keyframes rotateOrb {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.orbRing {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(59, 130, 246, 0.3);
+  animation: pulseRing 3s ease-out infinite;
+}
+
+@keyframes pulseRing {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  100% { transform: scale(1.3); opacity: 1; }
+}
+
+.nativeTurnStream {
+  width: 100%;
+  max-width: 580px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.turnPair {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nativeUserBubble {
+  align-self: flex-end;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #065f46;
+  padding: 8px 14px;
+  border-radius: 16px 16px 4px 16px;
+  font-size: 14px;
+  line-height: 1.45;
+  max-width: 85%;
+}
+
+:global([data-theme="dark"]) .nativeUserBubble {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #a7f3d0;
+}
+
+.nativeAssistantBubble {
+  align-self: flex-start;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  color: #1e40af;
+  padding: 8px 14px;
+  border-radius: 16px 16px 16px 4px;
+  font-size: 14px;
+  line-height: 1.45;
+  max-width: 85%;
+}
+
+:global([data-theme="dark"]) .nativeAssistantBubble {
+  background: rgba(59, 130, 246, 0.16);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #bfdbfe;
+}
+
+.transcriptInterim {
+  opacity: 0.8;
+  font-style: italic;
+}
+
+.statusDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.dotConnecting {
+  background: #fbbf24;
+  box-shadow: 0 0 6px #fbbf24;
+  animation: pulseDot 1s infinite alternate;
+}
+
+.dotListening {
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+
+.dotSpeaking {
+  background: #3b82f6;
+  box-shadow: 0 0 8px #3b82f6;
+  animation: pulseDot 0.6s infinite alternate;
+}
+
+.dotInterrupted {
+  background: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
+}
+
+@keyframes pulseDot {
+  0% { transform: scale(0.8); opacity: 0.6; }
+  100% { transform: scale(1.3); opacity: 1; }
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.04);
+  color: #374151;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+:global([data-theme="dark"]) .actionBtn {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #e5e7eb;
+}
+
+.actionBtn:hover {
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563eb;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.actionBtnMuted {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #ef4444 !important;
+}

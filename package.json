@@ -1,0 +1,19 @@
+{
+  "name": "dsh-plugin-voicespirit-workspace",
+  "private": true,
+  "description": "Realtime duplex voice call plugin for DeepSeek Harness (dsh)",
+  "scripts": {
+    "build": "pnpm --filter \"./packages/**\" run bundle",
+    "dev": "pnpm --filter \"./packages/**\" --parallel run watch"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "deepseek",
+    "voicespirit",
+    "voice-agent",
+    "realtime-voice",
+    "cordis"
+  ],
+  "license": "MIT"
+}
