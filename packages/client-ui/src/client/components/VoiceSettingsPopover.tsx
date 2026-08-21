@@ -67,12 +67,12 @@ export const VoiceSettingsPopover: React.FC<VoiceSettingsPopoverProps> = ({
       if (value === undefined || value === '') continue
       const segments = spec.path.split('.')
       let cursor = patch
-      for (let i = 0; i < segments.length - 1; i++) {
-        const segment = segments[i]!
+      for (const segment of segments.slice(0, -1)) {
         if (typeof cursor[segment] !== 'object' || cursor[segment] === null) cursor[segment] = {}
         cursor = cursor[segment] as Record<string, unknown>
       }
-      cursor[segments[segments.length - 1]!] = value
+      const leaf = segments.at(-1)
+      if (leaf !== undefined) cursor[leaf] = value
     }
     if (Object.keys(patch).length === 0) return
     setSavingKeys(true)

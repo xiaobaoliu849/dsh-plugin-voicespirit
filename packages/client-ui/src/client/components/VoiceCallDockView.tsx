@@ -47,7 +47,6 @@ export const VoiceCallDockView: React.FC<VoiceCallDockViewProps> = ({
             currentUserText={snapshot.userText}
             isUserInterim={snapshot.isUserInterim}
             currentAssistantText={snapshot.assistantText}
-            t={t}
           />
 
           {/* 2. Type-into-the-call row (hidden while the immersive view owns the screen) */}

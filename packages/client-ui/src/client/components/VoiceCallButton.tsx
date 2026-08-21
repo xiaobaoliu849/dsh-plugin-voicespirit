@@ -5,7 +5,9 @@ import styles from './VoiceCall.module.css'
 export const VoiceCallHeaderButton: React.FC<VoiceCallComposerButtonProps> = (props) => {
   const actions = props.actions
   const isCallActive = actions?.isCallActive || false
-  const t = (props as any).t || ((k: string) => k)
+  const t = 't' in props && typeof props.t === 'function'
+    ? props.t as (key: string) => string
+    : (key: string) => key
 
   return (
     <button

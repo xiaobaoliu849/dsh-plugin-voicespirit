@@ -201,7 +201,9 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
 
 /** Catalog entry for one provider id, or the DashScope default. */
 export function providerEntry(provider: string | undefined): ProviderCatalogEntry {
-  return PROVIDER_CATALOG.find(entry => entry.id === provider) ?? PROVIDER_CATALOG[0]!
+  const fallback = PROVIDER_CATALOG.at(0)
+  if (fallback === undefined) throw new Error('the provider catalog must not be empty')
+  return PROVIDER_CATALOG.find(entry => entry.id === provider) ?? fallback
 }
 
 /** Lifecycle phase of the backend as the status route reports it. */

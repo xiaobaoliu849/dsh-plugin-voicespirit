@@ -359,12 +359,12 @@ export class VoiceSettingsCardController {
           if (trimmed === '') continue
           const segments = path.split('.')
           let cursor = backendPatch
-          for (let i = 0; i < segments.length - 1; i++) {
-            const segment = segments[i]!
+          for (const segment of segments.slice(0, -1)) {
             if (typeof cursor[segment] !== 'object' || cursor[segment] === null) cursor[segment] = {}
             cursor = cursor[segment] as Record<string, unknown>
           }
-          cursor[segments[segments.length - 1]!] = trimmed
+          const leaf = segments.at(-1)
+          if (leaf !== undefined) cursor[leaf] = trimmed
         }
         if (Object.keys(backendPatch).length > 0) {
           const error = await this.backendClient.saveSettings(backendPatch)

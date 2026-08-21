@@ -10,7 +10,6 @@ export interface VoiceHeroExperienceProps {
   currentUserText: string
   isUserInterim: boolean
   currentAssistantText: string
-  t: (k: any) => string
 }
 
 export const VoiceHeroExperience: React.FC<VoiceHeroExperienceProps> = ({

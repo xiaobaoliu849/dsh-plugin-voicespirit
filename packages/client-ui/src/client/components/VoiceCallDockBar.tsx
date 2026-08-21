@@ -39,8 +39,9 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
 
   // Server errors carry their real cause (missing key, bad realtime URL) —
   // append it so the ribbon says what actually went wrong.
+  const errorKey = controller.errorKey()
   const errorDetail = engine.phase === 'error'
-    ? (controller.errorKey() !== undefined ? t(controller.errorKey()!) : t('statusError'))
+    ? (errorKey !== undefined ? t(errorKey) : t('statusError'))
       + (engine.errorMessage ? ` — ${engine.errorMessage}` : '')
     : ''
   const statusText = snapshot.assistantText

@@ -46,6 +46,19 @@ export interface VoiceTranscriptTurn {
   interrupted?: boolean
 }
 
+/** JSON control events the backend streams alongside binary audio frames. */
+interface VoiceServerEvent {
+  type?: string
+  text?: string
+  interim?: boolean
+  audio?: string
+  data?: string
+  sample_rate?: number
+  turn_id?: string
+  interrupted?: boolean
+  message?: string
+}
+
 /** Spectrum slots the level monitor reports; the dock waveform renders one bar each. */
 export const SPECTRUM_BANDS = 8
 
@@ -75,8 +88,8 @@ function normalizeGatewayUrl(url?: string): string {
 function extractBands(data: Uint8Array, edges: number[]): number[] {
   const bands: number[] = []
   for (let b = 0; b < edges.length - 1; b++) {
-    const start = edges[b]!
-    const end = Math.min(edges[b + 1]!, data.length)
+    const start = edges[b] ?? 0
+    const end = Math.min(edges[b + 1] ?? data.length, data.length)
     let sum = 0
     let count = 0
     for (let i = start; i < end; i++) {
@@ -212,9 +225,10 @@ export class VoiceAudioEngine {
       }
 
       this.startLevelMonitor()
-    } catch (err: any) {
+    } catch (err) {
       console.error('[VoiceAudioEngine] Failed to start:', err)
-      this.fail('microphone', err?.message || 'microphone unavailable')
+      const message = err instanceof Error ? err.message : 'microphone unavailable'
+      this.fail('microphone', message)
       this.stop(false)
     }
   }
@@ -325,7 +339,9 @@ export class VoiceAudioEngine {
   }
 
   private async initAudioInput(): Promise<void> {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+    const webkitWindow = window as Window & { webkitAudioContext?: typeof AudioContext }
+    const AudioCtx = window.AudioContext ?? webkitWindow.webkitAudioContext
+    if (AudioCtx === undefined) throw new Error('Web Audio API is unavailable in this browser')
     this.audioCtx = new AudioCtx()
     if (this.audioCtx.state === 'suspended') {
       await this.audioCtx.resume()
@@ -362,8 +378,9 @@ export class VoiceAudioEngine {
       const inputData = e.inputBuffer.getChannelData(0)
       const pcm16 = this.downsampleTo16k(inputData, inputSampleRate, targetSampleRate)
       if (pcm16.length > 0 && this.ws && this.ws.readyState === WebSocket.OPEN) {
-        // Send raw binary PCM 16-bit 16kHz audio frame directly to backend
-        this.ws.send(pcm16.buffer as any)
+        // Send raw binary PCM 16-bit 16kHz audio frame directly to backend.
+        // The buffer is freshly allocated above, so it is a plain ArrayBuffer.
+        this.ws.send(pcm16.buffer as ArrayBuffer)
       }
     }
 
@@ -377,11 +394,11 @@ export class VoiceAudioEngine {
     this.micSink.connect(this.audioCtx.destination)
   }
 
-  private handleWsMessage(data: any): void {
+  private handleWsMessage(data: string | ArrayBuffer): void {
     try {
-      let msg: any
+      let msg: VoiceServerEvent | undefined
       if (typeof data === 'string') {
-        msg = JSON.parse(data)
+        msg = JSON.parse(data) as VoiceServerEvent
       } else if (data instanceof ArrayBuffer) {
         // Binary audio stream directly
         this.playAudioChunk(data, 24000)
