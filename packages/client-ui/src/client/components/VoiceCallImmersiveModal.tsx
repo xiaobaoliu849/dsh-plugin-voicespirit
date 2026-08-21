@@ -1,85 +1,90 @@
-import React from 'react'
-import type { VoiceAudioEngine, VoiceEngineState, VoiceTranscriptTurn } from '../engine/VoiceAudioEngine.ts'
+/**
+ * The immersive full-screen call view: oversized orb, subtitle stream, and the
+ * call controls. Selection changes go through the controller (settings scope),
+ * never through prop mutation.
+ */
+
+import React, { useEffect, useRef } from 'react'
+import type { VoiceSpiritController, VoiceSpiritUiState } from '../voice-controller.ts'
+import type { VoiceSpiritKey } from '../locales.ts'
 import { VoiceSettingsPopover } from './VoiceSettingsPopover.tsx'
+import { VoiceTextInput } from './VoiceTextInput.tsx'
 import styles from './VoiceCall.module.css'
 
-interface VoiceCallImmersiveModalProps {
-  engine: VoiceAudioEngine
-  state: VoiceEngineState
-  micLevel: number
-  speakerLevel: number
-  currentUserText: string
-  isUserInterim: boolean
-  currentAssistantText: string
-  historyTurns: VoiceTranscriptTurn[]
-  onClose: () => void
-  onEndCall: () => void
-  onToggleMute: () => void
-  onInterrupt: () => void
-  t: (k: any) => string
+export interface VoiceCallImmersiveModalProps {
+  snapshot: VoiceSpiritUiState
+  controller: VoiceSpiritController
+  t: (key: VoiceSpiritKey) => string
 }
 
 export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = ({
-  engine,
-  state,
-  micLevel,
-  speakerLevel,
-  currentUserText,
-  isUserInterim,
-  currentAssistantText,
-  historyTurns,
-  onClose,
-  onEndCall,
-  onToggleMute,
-  onInterrupt,
+  snapshot,
+  controller,
   t,
 }) => {
-  const isSpeaking = state.phase === 'speaking' || speakerLevel > 0.05
-  const activeLevel = isSpeaking ? speakerLevel : micLevel
+  const { engine } = snapshot
+  const isSpeaking = engine.phase === 'speaking' || snapshot.speakerLevel > 0.05
+  const activeLevel = isSpeaking ? snapshot.speakerLevel : snapshot.micLevel
   const orbScale = 1 + Math.min(0.35, activeLevel * 0.7)
 
+  const backdropRef = useRef<HTMLDivElement>(null)
+  const subtitlesRef = useRef<HTMLDivElement>(null)
+
+  // Escape leaves immersive mode; focus lands here on open so keyboard users
+  // start inside the dialog.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        controller.closeImmersive()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    backdropRef.current?.focus()
+    return () => { window.removeEventListener('keydown', onKeyDown) }
+  }, [controller])
+
+  // Keep the newest subtitle in view as turns stream in.
+  useEffect(() => {
+    const node = subtitlesRef.current
+    if (node) node.scrollTop = node.scrollHeight
+  }, [snapshot.historyTurns, snapshot.userText, snapshot.assistantText])
+
   return (
-    <div className={styles.immersiveBackdrop}>
+    <div
+      ref={backdropRef}
+      className={styles.immersiveBackdrop}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`VoiceSpirit — ${engine.provider}`}
+      tabIndex={-1}
+    >
       {/* Top Header */}
       <div className={styles.immersiveHeader}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 16, fontWeight: 600, color: '#f3f4f6' }}>
-            VoiceSpirit × DeepSeek
+            VoiceSpirit
           </span>
           <span className={styles.statusPill}>
             <span
               className={`${styles.statusDot} ${
-                state.phase === 'connecting'
+                engine.phase === 'connecting' || snapshot.launching
                   ? styles.dotConnecting
                   : isSpeaking
                   ? styles.dotSpeaking
                   : styles.dotListening
               }`}
             />
-            {state.provider} · {state.voice}
+            {engine.provider} · {engine.voice}
           </span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <VoiceSettingsPopover
-            options={{
-              gatewayUrl: 'ws://127.0.0.1:8000/voice-chat/ws',
-              provider: state.provider,
-              model: state.model,
-              voice: state.voice,
-            }}
-            onChange={(opt) => {
-              void engine.stop()
-              if (opt.provider) state.provider = opt.provider
-              if (opt.model) state.model = opt.model
-              if (opt.voice) state.voice = opt.voice
-            }}
-            t={t}
-          />
+          <VoiceSettingsPopover snapshot={snapshot} controller={controller} t={t} />
           <button
             type="button"
             className={styles.actionBtn}
-            onClick={onClose}
+            onClick={() => { controller.closeImmersive() }}
             title={t('minimize')}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -95,45 +100,55 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
       {/* Pulsating Fluid Audio Orb */}
       <div className={styles.orbContainer}>
         <div className={styles.orbRing} />
+        {/* Scale rides a wrapper layer: the orb's own transform is owned by
+            the rotate animation, which would override an inline scale. */}
         <div
-          className={`${styles.voiceOrb} ${!isSpeaking ? styles.voiceOrbListening : ''}`}
-          style={{ transform: `scale(${orbScale})` }}
-        />
+          style={{
+            transform: `scale(${orbScale})`,
+            transition: 'transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            display: 'flex',
+          }}
+        >
+          <div className={`${styles.voiceOrb} ${!isSpeaking ? styles.voiceOrbListening : ''}`} />
+        </div>
       </div>
 
       {/* Live Transcript Stream */}
-      <div className={styles.immersiveSubtitles}>
-        {historyTurns.slice(-4).map((turn) => (
+      <div ref={subtitlesRef} className={styles.immersiveSubtitles}>
+        {snapshot.historyTurns.slice(-4).map((turn) => (
           <React.Fragment key={turn.id}>
             <div className={styles.userSubtitle}>{turn.userText}</div>
             <div className={styles.aiSubtitle}>{turn.assistantText}</div>
           </React.Fragment>
         ))}
 
-        {currentUserText && (
-          <div className={styles.userSubtitle} style={{ opacity: isUserInterim ? 0.7 : 1 }}>
-            {currentUserText}
+        {snapshot.userText && (
+          <div className={styles.userSubtitle} style={{ opacity: snapshot.isUserInterim ? 0.7 : 1 }}>
+            {snapshot.userText}
           </div>
         )}
 
-        {currentAssistantText && (
+        {snapshot.assistantText && (
           <div className={styles.aiSubtitle}>
-            {currentAssistantText}
+            {snapshot.assistantText}
           </div>
         )}
       </div>
+
+      {/* Type-into-the-call row */}
+      <VoiceTextInput snapshot={snapshot} controller={controller} t={t} />
 
       {/* Bottom Controls */}
       <div className={styles.immersiveFooter}>
         {/* Mute Button */}
         <button
           type="button"
-          className={`${styles.actionBtn} ${state.isMuted ? styles.actionBtnMuted : ''}`}
+          className={`${styles.actionBtn} ${engine.isMuted ? styles.actionBtnMuted : ''}`}
           style={{ width: 44, height: 44, borderRadius: 22 }}
-          onClick={onToggleMute}
-          title={state.isMuted ? t('unmute') : t('mute')}
+          onClick={() => { controller.toggleMute() }}
+          title={engine.isMuted ? t('unmute') : t('mute')}
         >
-          {state.isMuted ? (
+          {engine.isMuted ? (
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="1" y1="1" x2="23" y2="23" />
               <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
@@ -156,7 +171,7 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
             type="button"
             className={styles.actionBtn}
             style={{ width: 44, height: 44, borderRadius: 22 }}
-            onClick={onInterrupt}
+            onClick={() => { controller.interrupt() }}
             title={t('interrupt')}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -173,12 +188,14 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
           className={styles.hangupBtn}
           style={{ height: 44, padding: '0 20px', borderRadius: 22, fontSize: 14 }}
           onClick={() => {
-            onClose()
-            onEndCall()
+            controller.closeImmersive()
+            controller.endCall()
           }}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect width="14" height="14" x="5" y="5" rx="2" fill="currentColor" />
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(135deg)' }}>
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" />
+            <line x1="22" y1="2" x2="16" y2="8" />
+            <line x1="16" y1="2" x2="22" y2="8" />
           </svg>
           <span>{t('endVoiceCall')}</span>
         </button>

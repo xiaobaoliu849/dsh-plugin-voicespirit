@@ -1,5 +1,6 @@
-import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 
+/** Actions the plugin injects into its slot components. */
 export interface VoiceSpiritInjectedActions {
   startCall: () => void
   endCall: () => void
@@ -11,10 +12,8 @@ export interface VoiceSpiritInjectedActions {
   isMuted: boolean
 }
 
-export type VoiceCallButtonProps = PropsRuntime<'conversation.session.header.actions'> & {
-  actions?: VoiceSpiritInjectedActions
-}
-
-export type VoiceCallComposerButtonProps = PropsRuntime<'conversation.input.right'> & {
-  actions?: VoiceSpiritInjectedActions
-}
+/** Props the composer mic button receives from its slot registration. */
+export type VoiceCallComposerButtonProps = PropsRuntime<'conversation.input.right'>
+  & PropsLocale<'voicespirit'> & {
+    actions?: VoiceSpiritInjectedActions
+  }

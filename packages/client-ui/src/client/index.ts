@@ -1,16 +1,25 @@
 /**
  * VoiceSpirit Realtime Voice Plugin Client Assembly
  * Deeply integrates realtime duplex voice conversations with DeepSeek Harness design language.
+ *
+ * One controller owns the audio engine, the backend status client, and the
+ * harness settings scope; every surface (composer mic button, call dock,
+ * quick settings popover, settings card) reads through it, so provider,
+ * credentials, and backend phase can never disagree between them.
  */
-import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { VoiceAudioEngine, type VoiceEngineState, type VoiceTranscriptTurn } from './engine/VoiceAudioEngine.ts'
+import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import { VoiceSettingsCard } from './components/VoiceSettingsCard.tsx'
 import { VoiceCallHeaderButton } from './components/VoiceCallButton.tsx'
 import { VoiceCallDockView } from './components/VoiceCallDockView.tsx'
 import { en, zh, type VoiceSpiritKey } from './locales.ts'
-import type { VoiceSpiritInjectedActions } from './slots.ts'
+import { VoiceSettingsCardController, VOICESPIRIT_SETTINGS_NAMESPACE } from './voice-card-controller.ts'
+import { VoiceSpiritController } from './voice-controller.ts'
+import type { VoiceSpiritSettings } from './contract/settings.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -20,113 +29,24 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 const NS = 'voicespirit'
 
-export const inject = ['slots', 'sessions', 'locale']
+export const inject = ['slots', 'locale', 'settingsScope']
 
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-voicespirit: dictionaries')
+  const t = ctx.locale.bind(NS)
 
-  // Global Engine Instance
-  let engineInstance: VoiceAudioEngine | null = null
-  const subscribers = new Set<() => void>()
+  const scope = ctx.settingsScope.bind<VoiceSpiritSettings>({ namespace: VOICESPIRIT_SETTINGS_NAMESPACE })
+  const controller = new VoiceSpiritController(scope)
+  ctx.effect(
+    () => {
+      controller.startMonitoring()
+      return () => { controller.stopMonitoring() }
+    },
+    'ui-voicespirit: backend status polling',
+  )
+  const card = new VoiceSettingsCardController(scope, controller.getBackendClient())
 
-  let currentState: VoiceEngineState = {
-    phase: 'idle',
-    isConnected: false,
-    isMuted: false,
-    provider: 'Cartesia',
-    model: 'cartesia-realtime',
-    voice: 'f786b574-daa5-4673-aa0c-cbe3e8534c02',
-  }
-
-  let micLevel = 0
-  let speakerLevel = 0
-  let currentUserText = ''
-  let isUserInterim = false
-  let currentAssistantText = ''
-  const historyTurns: VoiceTranscriptTurn[] = []
-
-  function notify() {
-    subscribers.forEach((cb) => cb())
-  }
-
-  function getOrCreateEngine(sessionId?: SessionId): VoiceAudioEngine {
-    if (!engineInstance) {
-      engineInstance = new VoiceAudioEngine({
-        onStateChange: (state) => {
-          currentState = state
-          notify()
-        },
-        onLevelsChange: (mic, spk) => {
-          micLevel = mic
-          speakerLevel = spk
-          notify()
-        },
-        onTranscriptChange: (userText, interim, assistantText) => {
-          currentUserText = userText
-          isUserInterim = interim
-          currentAssistantText = assistantText
-          notify()
-        },
-        onTurnComplete: (turn) => {
-          historyTurns.push(turn)
-          currentUserText = ''
-          isUserInterim = false
-          currentAssistantText = ''
-          notify()
-
-          if (sessionId) {
-            try {
-              const binding = ctx.sessions?.binding(sessionId)
-              if (binding) {
-                console.log('[ui-voicespirit] Synchronized turn to session:', sessionId, turn)
-              }
-            } catch (e) {
-              console.warn('[ui-voicespirit] Session sync error:', e)
-            }
-          }
-        },
-        onError: (err) => {
-          console.error('[ui-voicespirit] Voice Engine Error:', err)
-          notify()
-        },
-      })
-      currentState = engineInstance.getState()
-    }
-    return engineInstance
-  }
-
-  const getActions = (): VoiceSpiritInjectedActions => {
-    const engine = getOrCreateEngine()
-    return {
-      startCall: () => {
-        engine.start()
-        notify()
-      },
-      endCall: () => {
-        engine.stop()
-        notify()
-      },
-      toggleMute: () => engine.toggleMute(),
-      interrupt: () => engine.interrupt(),
-      openSettings: () => {},
-      toggleImmersive: () => {
-        notify()
-      },
-      isCallActive: currentState.isConnected || currentState.phase !== 'idle',
-      isMuted: currentState.isMuted,
-    }
-  }
-
-  const subscribe = (cb: () => void) => {
-    subscribers.add(cb)
-    return () => {
-      subscribers.delete(cb)
-    }
-  }
-
-  const t = (k: VoiceSpiritKey) => zh[k] || (k as string)
-
-  // 1. Inject into conversation composer toolbar (bottom-right next to model selector)
+  // 1. Composer mic button (bottom-right of the input toolbar)
   ctx.slots.inject(
     'conversation.input.right',
     () =>
@@ -135,11 +55,22 @@ export function apply(ctx: ClientContext): void {
           name: 'conversation.input.right',
           id: 'ui-voicespirit:mic-btn',
           order: 90,
+          locale: NS,
           inject: () => {
-            getOrCreateEngine()
+            const snapshot = controller.getSnapshot()
             return {
-              actions: getActions(),
-              state: currentState,
+              t,
+              actions: {
+                startCall: () => { void controller.startCall() },
+                endCall: () => { controller.endCall() },
+                toggleMute: () => { controller.toggleMute() },
+                interrupt: () => { controller.interrupt() },
+                toggleImmersive: () => { controller.toggleImmersive() },
+                // An errored session reads as "not in a call": the next mic
+                // click starts a fresh attempt instead of hanging up.
+                isCallActive: snapshot.engine.phase !== 'idle' && snapshot.engine.phase !== 'error',
+                isMuted: snapshot.engine.isMuted,
+              },
             }
           },
         },
@@ -147,7 +78,8 @@ export function apply(ctx: ClientContext): void {
       ),
   )
 
-  // 2. Inject VoiceSpirit integrated stage (Audio Orb + Ribbon + Controls + Hangup) directly above the composer
+  // 2. VoiceSpirit integrated stage (Audio Orb + Ribbon + Controls + Hangup)
+  //    stacked above the composer, plus the immersive full-screen view.
   ctx.slots.inject(
     'conversation.input.dock',
     () =>
@@ -156,21 +88,21 @@ export function apply(ctx: ClientContext): void {
           name: 'conversation.input.dock',
           id: 'ui-voicespirit:dock',
           order: 10,
-          inject: (props: any) => ({
-            sessionId: props?.sessionId,
-            t,
-            getEngine: () => getOrCreateEngine(props?.sessionId),
-            getState: () => currentState,
-            getMicLevel: () => micLevel,
-            getSpeakerLevel: () => speakerLevel,
-            getCurrentUserText: () => currentUserText,
-            getIsUserInterim: () => isUserInterim,
-            getCurrentAssistantText: () => currentAssistantText,
-            getHistoryTurns: () => historyTurns,
-            subscribe,
-          }),
+          locale: NS,
+          inject: () => ({ controller, t }),
         },
         VoiceCallDockView,
       ),
   )
+
+  // 3. The plugin card in Settings → Plugins: backend lifecycle, provider
+  //    selection, and the selected provider's credentials.
+  ctx.slots.inject('settings.plugin.item', function* () {
+    yield ctx.slots.register({
+      name: 'settings.plugin.item',
+      key: VOICESPIRIT_SETTINGS_NAMESPACE,
+      locale: NS,
+      inject: () => card.inject(),
+    }, VoiceSettingsCard)
+  })
 }

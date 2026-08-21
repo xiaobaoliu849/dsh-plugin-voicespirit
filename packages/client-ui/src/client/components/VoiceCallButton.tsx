@@ -1,8 +1,8 @@
 import React from 'react'
-import type { VoiceCallButtonProps } from '../slots.ts'
+import type { VoiceCallComposerButtonProps } from '../slots.ts'
 import styles from './VoiceCall.module.css'
 
-export const VoiceCallHeaderButton: React.FC<VoiceCallButtonProps> = (props) => {
+export const VoiceCallHeaderButton: React.FC<VoiceCallComposerButtonProps> = (props) => {
   const actions = props.actions
   const isCallActive = actions?.isCallActive || false
   const t = (props as any).t || ((k: string) => k)

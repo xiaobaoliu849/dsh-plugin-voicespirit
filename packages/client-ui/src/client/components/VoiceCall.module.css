@@ -85,6 +85,11 @@
   font-weight: 600;
   color: #1f2937;
   white-space: nowrap;
+  /* Streaming transcripts can be long — shrink and ellipsize instead of
+     pushing the model badge and controls out of the ribbon. */
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
 }
 
 :global([data-theme="dark"]) .vsStatusPill {
@@ -94,6 +99,8 @@
 .vsStatusText {
   font-size: 13px;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .vsModelBadge {
@@ -131,10 +138,20 @@
 }
 
 .vsWaveBarMic {
-  background: #10b981;
+  /* Speaker-identity pair validated for CVD separation and ≥3:1 contrast on
+     both ribbon surfaces (light #16a34a/#2563eb, dark #16a34a/#3b82f6). */
+  background: #16a34a;
+}
+
+:global([data-theme="dark"]) .vsWaveBarMic {
+  background: #16a34a;
 }
 
 .vsWaveBarAI {
+  background: #2563eb;
+}
+
+:global([data-theme="dark"]) .vsWaveBarAI {
   background: #3b82f6;
 }
 
@@ -235,10 +252,166 @@
   gap: 10px;
 }
 
+/* ── Type-into-the-call row ──────────────────────────────────────────────── */
+
+.vsTextInputRow {
+  width: 100%;
+  max-width: 580px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+.vsTextInput {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 13px;
+  color: #1f2937;
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  padding: 0 12px;
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.vsTextInput::placeholder {
+  color: #9ca3af;
+}
+
+.vsTextInput:focus {
+  border-color: #2563eb;
+  background: #ffffff;
+}
+
+.vsTextInput:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+:global([data-theme="dark"]) .vsTextInput {
+  color: #f3f4f6;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+:global([data-theme="dark"]) .vsTextInput::placeholder {
+  color: #6b7280;
+}
+
+:global([data-theme="dark"]) .vsTextInput:focus {
+  border-color: #3b82f6;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.vsTextSendBtn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.vsTextSendBtn:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.vsTextSendBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+:global([data-theme="dark"]) .vsTextSendBtn {
+  background: #3b82f6;
+}
+
+:global([data-theme="dark"]) .vsTextSendBtn:hover:not(:disabled) {
+  background: #2563eb;
+}
+
 .turnPair {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* ── Ended-call review card ─────────────────────────────────────────────── */
+
+.lastCallCard {
+  width: 100%;
+  max-width: 580px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #fbf9f4;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  animation: slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:global([data-theme="dark"]) .lastCallCard {
+  background: #1e2025;
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.lastCallHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lastCallTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+}
+
+:global([data-theme="dark"]) .lastCallTitle {
+  color: #f3f4f6;
+}
+
+.lastCallMeta {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:global([data-theme="dark"]) .lastCallMeta {
+  color: #9ca3af;
+}
+
+.lastCallActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.lastCallTurns {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .nativeUserBubble {
@@ -295,13 +468,13 @@
 }
 
 .dotListening {
-  background: #10b981;
-  box-shadow: 0 0 6px #10b981;
+  background: #16a34a;
+  box-shadow: 0 0 6px #16a34a;
 }
 
 .dotSpeaking {
-  background: #3b82f6;
-  box-shadow: 0 0 8px #3b82f6;
+  background: #2563eb;
+  box-shadow: 0 0 8px #2563eb;
   animation: pulseDot 0.6s infinite alternate;
 }
 
@@ -347,4 +520,333 @@
   background: rgba(239, 68, 68, 0.1) !important;
   border-color: rgba(239, 68, 68, 0.4) !important;
   color: #ef4444 !important;
+}
+
+/* ── Immersive full-screen call view ─────────────────────────────────────── */
+
+.immersiveBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  background: radial-gradient(circle at 50% 30%, rgba(30, 34, 48, 0.98) 0%, rgba(10, 12, 18, 0.99) 70%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  padding: 28px 32px;
+  animation: vsFadeIn 0.25s ease;
+}
+
+@keyframes vsFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.immersiveHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #9ca3af;
+}
+
+.orbContainer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 260px;
+  height: 260px;
+}
+
+.immersiveSubtitles {
+  width: 100%;
+  max-width: 720px;
+  max-height: 32vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: center;
+}
+
+.userSubtitle {
+  align-self: flex-end;
+  max-width: 80%;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #d1fae5;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  padding: 7px 12px;
+  border-radius: 14px 14px 3px 14px;
+}
+
+.aiSubtitle {
+  align-self: flex-start;
+  max-width: 80%;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #dbeafe;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  padding: 7px 12px;
+  border-radius: 14px 14px 14px 3px;
+}
+
+.immersiveFooter {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.hangupBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #dc2626;
+  border: none;
+  border-radius: 22px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4);
+}
+
+.hangupBtn:hover {
+  background: #b91c1c;
+}
+
+.dotError {
+  background: #ef4444 !important;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.7) !important;
+}
+
+.bubbleInterim {
+  opacity: 0.65;
+  font-style: italic;
+}
+
+/* ── Quick settings popover ──────────────────────────────────────────────── */
+
+.popoverAnchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.popoverScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+
+.popoverPanel {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  right: 0;
+  width: 300px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: rgba(24, 27, 36, 0.98);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65);
+}
+
+.popoverHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.popoverTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f3f4f6;
+}
+
+.popoverClose {
+  appearance: none;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.popoverClose:hover {
+  color: #e5e7eb;
+}
+
+.popoverBackendRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.backendDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.backendDotRunning {
+  background: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.7);
+}
+
+.backendDotStarting {
+  background: #f59e0b;
+  animation: pulseDot 1s infinite alternate;
+}
+
+.backendDotError {
+  background: #ef4444;
+}
+
+.backendDotStopped {
+  background: #6b7280;
+}
+
+.popoverBackendLabel {
+  font-size: 12px;
+  color: #d1d5db;
+}
+
+.popoverMiniBtn {
+  appearance: none;
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.popoverMiniBtn:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.popoverMiniBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.popoverField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.popoverLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+.popoverSectionLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.popoverInput {
+  box-sizing: border-box;
+  width: 100%;
+  font: inherit;
+  font-size: 12px;
+  color: #e5e7eb;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 6px 8px;
+  outline: none;
+}
+
+.popoverInput::placeholder {
+  color: #6b7280;
+}
+
+.popoverInput:focus {
+  border-color: #3b82f6;
+}
+
+.popoverKeyActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.popoverKeyResult {
+  font-size: 11px;
+  color: #34d399;
+}
+
+.popoverKeyResultFailed {
+  color: #f87171;
+}
+
+.popoverSelect {
+  appearance: auto;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #e5e7eb;
+  padding: 6px 8px;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+}
+
+.popoverSelect:focus {
+  border-color: #3b82f6;
+}
+
+.popoverSelect:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.popoverHint {
+  font-size: 11px;
+  line-height: 1.45;
+  color: #9ca3af;
+}
+
+.popoverHintDim {
+  font-size: 10px;
+  color: #6b7280;
 }
