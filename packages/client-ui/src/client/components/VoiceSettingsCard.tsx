@@ -285,6 +285,75 @@ export function VoiceSettingsCard(props: VoiceSettingsCardProps) {
             />
           ))}
 
+          {/* ── Memory · EverMemOS ───────────────────────────────────── */}
+          {state.memory !== undefined && (
+            <>
+              <h4 className={styles.sectionTitle}>
+                {t('sectionMemory')}
+                <span
+                  className={`${styles.headerDot} ${state.memory.ready ? styles.dotRunning : styles.dotStopped}`}
+                  title={state.memory.ready ? t('memoryReady') : t('memoryInactive')}
+                />
+              </h4>
+              <div className={styles.fieldRow}>
+                <ToggleField
+                  label={t('memoryEnable')}
+                  hint={t('memoryEnableHint')}
+                  value={state.memory.enabled}
+                  disabled={!state.writable || !state.credentialsLoaded}
+                  onChange={(value) => { props.setMemoryToggle('enabled', value) }}
+                />
+              </div>
+              {state.memory.enabled && (
+                <>
+                  <div className={styles.fieldRow}>
+                    <ToggleField
+                      label={t('memoryTempSession')}
+                      hint={t('memoryTempSessionHint')}
+                      value={state.memory.temporarySession}
+                      disabled={!state.writable || !state.credentialsLoaded}
+                      onChange={(value) => { props.setMemoryToggle('temporarySession', value) }}
+                    />
+                    <ToggleField
+                      label={t('memorySceneVoice')}
+                      hint={t('memorySceneVoiceHint')}
+                      value={state.memory.rememberVoiceChat}
+                      disabled={!state.writable || !state.credentialsLoaded}
+                      onChange={(value) => { props.setMemoryToggle('rememberVoiceChat', value) }}
+                    />
+                  </div>
+                  <TextField
+                    id="voicespirit-memory-url"
+                    label={t('memoryApiUrl')}
+                    hint={t(state.memory.apiUrlField.configured ? 'memoryApiUrlHint' : 'memoryApiUrlDefault')}
+                    placeholder={t('memoryApiUrlHint')}
+                    field={{ text: state.memory.apiUrlField.draft, overridden: state.memory.apiUrlField.configured }}
+                    disabled={!state.credentialsLoaded}
+                    onEdit={(text) => { props.editMemoryField('memory_settings.api_url', text) }}
+                  />
+                  <TextField
+                    id="voicespirit-memory-key"
+                    label={t('memoryApiKey') + (state.memory.apiKeyField.configured ? ' ✓' : '')}
+                    placeholder={t('memoryApiKeyHint')}
+                    field={{ text: state.memory.apiKeyField.draft, overridden: state.memory.apiKeyField.configured }}
+                    secret
+                    disabled={!state.credentialsLoaded}
+                    onEdit={(text) => { props.editMemoryField('memory_settings.api_key', text) }}
+                  />
+                  <TextField
+                    id="voicespirit-memory-scope"
+                    label={t('memoryScopeId')}
+                    hint={t('memoryScopeIdHint')}
+                    placeholder={t('memoryScopeIdHint')}
+                    field={{ text: state.memory.scopeIdField.draft, overridden: state.memory.scopeIdField.configured }}
+                    disabled={!state.credentialsLoaded}
+                    onEdit={(text) => { props.editMemoryField('memory_settings.scope_id', text) }}
+                  />
+                </>
+              )}
+            </>
+          )}
+
           {/* ── Footer ──────────────────────────────────────────────── */}
           <div className={styles.footer}>
             <span className={
@@ -356,5 +425,33 @@ function TextField(props: {
         <span className={styles.fieldHint}>{props.hint}</span>
       )}
     </label>
+  )
+}
+
+/** One staged boolean preference rendered as the shared switch control. */
+function ToggleField(props: {
+  label: string
+  hint?: string
+  value: boolean
+  disabled?: boolean
+  onChange: (value: boolean) => void
+}) {
+  return (
+    <div className={`${styles.toggleField} ${styles.field}`}>
+      <span className={styles.fieldLabel}>{props.label}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={props.value}
+        disabled={props.disabled}
+        className={`${styles.switch} ${props.value ? styles.switchOn : ''}`}
+        onClick={() => { props.onChange(!props.value) }}
+      >
+        <span className={styles.switchKnob} />
+      </button>
+      {props.hint !== undefined && props.hint !== '' && (
+        <span className={styles.fieldHint}>{props.hint}</span>
+      )}
+    </div>
   )
 }

@@ -11,10 +11,12 @@ import type { VoiceSpiritBackend } from './backend.ts'
 import {
   providerEntry,
   readBackendPath,
+  readMemorySettingsView,
   PROVIDER_CATALOG,
   VOICESPIRIT_SETTINGS_NAMESPACE,
   type BackendSettingsDocument,
   type BackendStatus,
+  type MemorySettingsView,
   type VoiceSpiritSettings,
 } from './contract/settings.ts'
 
@@ -40,6 +42,35 @@ export interface CredentialFieldView {
   draft: string
   /** Whether the backend document currently holds a value. */
   configured: boolean
+}
+
+/** One EverMemOS text control for the memory section. */
+export interface MemoryFieldView {
+  /** Dotted path inside the backend document (`memory_settings.api_key`). */
+  path: string
+  /** Locale key of the label. */
+  labelKey: string
+  /** Locale key of the placeholder. */
+  placeholderKey: string
+  /** Render as a password input. */
+  secret: boolean
+  /** Draft text (empty = keep what is configured). */
+  draft: string
+  /** Whether the backend document currently holds a value. */
+  configured: boolean
+}
+
+/** The memory section as the card renders it: staged overlays over the stored view. */
+export interface MemorySectionView {
+  stored: MemorySettingsView
+  enabled: boolean
+  temporarySession: boolean
+  rememberVoiceChat: boolean
+  apiUrlField: { draft: string, configured: boolean }
+  apiKeyField: { draft: string, configured: boolean }
+  scopeIdField: { draft: string, configured: boolean }
+  /** True once the section has enough configuration to run (enabled + key). */
+  ready: boolean
 }
 
 /** What the card renders. */
@@ -82,6 +113,9 @@ export interface VoiceSettingsCardState {
   fetchingModels: boolean
   modelMessage: string | undefined
   log: string[] | undefined
+
+  /** EverMemOS long-term memory section; fields load with the credentials. */
+  memory: MemorySectionView | undefined
 }
 
 /** The registration-side face the card's slot entry injects. */
@@ -100,7 +134,7 @@ export interface VoiceSettingsCardFace {
   selectModel: (model: string) => void
   /** Stage a voice. */
   selectVoice: (voice: string) => void
-  /** Write every staged edit (harness section, then credentials). */
+  /** Write every staged edit (harness section, then credentials and memory). */
   save: () => void
   /** Drop every staged edit. */
   discard: () => void
@@ -114,6 +148,10 @@ export interface VoiceSettingsCardFace {
   loadCredentials: () => void
   /** Stage one credential draft. */
   editCredential: (path: string, text: string) => void
+  /** Stage one EverMemOS field draft. */
+  editMemoryField: (path: string, text: string) => void
+  /** Stage one EverMemOS toggle. */
+  setMemoryToggle: (key: 'enabled' | 'temporarySession' | 'rememberVoiceChat', value: boolean) => void
   /** Toggle the log tail view. */
   toggleLog: () => void
 }
@@ -123,10 +161,19 @@ export type CardTextFieldKey = 'backendDir' | 'pythonPath' | 'port' | 'dataDir' 
 
 const TEXT_FIELDS: readonly CardTextFieldKey[] = ['backendDir', 'pythonPath', 'port', 'dataDir', 'apiToken']
 
+/** Backend-document paths the memory toggles write. */
+const MEMORY_TOGGLE_PATHS = {
+  enabled: 'memory_settings.enabled',
+  temporarySession: 'memory_settings.temporary_session',
+  rememberVoiceChat: 'memory_settings.remember_voice_chat',
+} as const
+
 export class VoiceSettingsCardController {
   private readonly store: SnapshotStore<VoiceSettingsCardState>
   private readonly staged = new Map<CardTextFieldKey, string>()
   private readonly credentialDrafts = new Map<string, string>()
+  /** Staged EverMemOS edits: dotted paths hold strings, toggle keys booleans. */
+  private readonly memoryStaged = new Map<string, string | boolean>()
   private stagedAutoStart: boolean | undefined
   private stagedProvider: string | undefined
   private stagedModel: string | undefined
@@ -189,6 +236,7 @@ export class VoiceSettingsCardController {
       discard: () => {
         this.staged.clear()
         this.credentialDrafts.clear()
+        this.memoryStaged.clear()
         this.stagedAutoStart = undefined
         this.stagedProvider = undefined
         this.stagedModel = undefined
@@ -203,6 +251,25 @@ export class VoiceSettingsCardController {
       editCredential: (path, text) => {
         if (text === '') this.credentialDrafts.delete(path)
         else this.credentialDrafts.set(path, text)
+        this.clearResult()
+        this.publish()
+      },
+      editMemoryField: (path, text) => {
+        if (text.trim() === '' && !this.memoryStaged.has(path)) return
+        if (text.trim() === '') this.memoryStaged.delete(path)
+        else this.memoryStaged.set(path, text)
+        this.clearResult()
+        this.publish()
+      },
+      setMemoryToggle: (key, value) => {
+        const path = MEMORY_TOGGLE_PATHS[key]
+        // An edit equal to the stored view unstages itself.
+        const stored = this.storedMemoryView()
+        const current = key === 'enabled' ? stored.enabled
+          : key === 'temporarySession' ? stored.temporarySession
+          : stored.rememberVoiceChat
+        if (value === current) this.memoryStaged.delete(path)
+        else this.memoryStaged.set(path, value)
         this.clearResult()
         this.publish()
       },
@@ -246,6 +313,38 @@ export class VoiceSettingsCardController {
     return this.stagedVoice ?? section?.defaultVoice ?? providerEntry(this.effectiveProvider(section)).voices[0] ?? ''
   }
 
+  /** The memory section as currently stored in the backend document. */
+  private storedMemoryView(): MemorySettingsView {
+    return readMemorySettingsView(this.backendDocument)
+  }
+
+  /** Memory section projection: stored view overlaid with staged edits. */
+  private memoryProjection(): MemorySectionView {
+    const stored = this.storedMemoryView()
+    const stagedFlag = (key: keyof typeof MEMORY_TOGGLE_PATHS): boolean | undefined => {
+      const staged = this.memoryStaged.get(MEMORY_TOGGLE_PATHS[key])
+      return typeof staged === 'boolean' ? staged : undefined
+    }
+    const fieldDraft = (path: string): string => {
+      const staged = this.memoryStaged.get(path)
+      return typeof staged === 'string' ? staged : ''
+    }
+    const enabled = stagedFlag('enabled') ?? stored.enabled
+    const temporarySession = stagedFlag('temporarySession') ?? stored.temporarySession
+    const rememberVoiceChat = stagedFlag('rememberVoiceChat') ?? stored.rememberVoiceChat
+    const apiKey = fieldDraft('memory_settings.api_key') || stored.apiKey
+    return {
+      stored,
+      enabled,
+      temporarySession,
+      rememberVoiceChat,
+      apiUrlField: { draft: fieldDraft('memory_settings.api_url'), configured: stored.apiUrl !== '' },
+      apiKeyField: { draft: fieldDraft('memory_settings.api_key'), configured: stored.apiKey !== '' },
+      scopeIdField: { draft: fieldDraft('memory_settings.scope_id'), configured: stored.scopeId !== '' },
+      ready: enabled && !temporarySession && rememberVoiceChat && apiKey.trim() !== '',
+    }
+  }
+
   private projection(): VoiceSettingsCardState {
     const snapshot = this.settingsScope.getSnapshot()
     const section = snapshot.value
@@ -266,6 +365,7 @@ export class VoiceSettingsCardController {
       writable: snapshot.writable,
       dirty: this.staged.size > 0
         || this.credentialDrafts.size > 0
+        || this.memoryStaged.size > 0
         || this.stagedAutoStart !== undefined
         || this.stagedProvider !== undefined
         || this.stagedModel !== undefined
@@ -309,6 +409,7 @@ export class VoiceSettingsCardController {
       fetchingModels: this.fetchingModels,
       modelMessage: undefined,
       log: this.log,
+      memory: this.memoryProjection(),
     }
   }
 
@@ -351,12 +452,11 @@ export class VoiceSettingsCardController {
         }
       }
 
-      // Credential drafts ride the backend document, not the harness section.
-      if (this.credentialDrafts.size > 0) {
+      // Credential and memory drafts ride the backend document, not the
+      // harness section; both merge into one deep-merge PATCH per save.
+      if (this.credentialDrafts.size > 0 || this.memoryStaged.size > 0) {
         const backendPatch: Record<string, unknown> = {}
-        for (const [path, value] of this.credentialDrafts) {
-          const trimmed = value.trim()
-          if (trimmed === '') continue
+        const writePath = (path: string, value: string | boolean): void => {
           const segments = path.split('.')
           let cursor = backendPatch
           for (const segment of segments.slice(0, -1)) {
@@ -364,7 +464,17 @@ export class VoiceSettingsCardController {
             cursor = cursor[segment] as Record<string, unknown>
           }
           const leaf = segments.at(-1)
-          if (leaf !== undefined) cursor[leaf] = trimmed
+          if (leaf !== undefined) cursor[leaf] = value
+        }
+        for (const [path, value] of this.credentialDrafts) {
+          const trimmed = value.trim()
+          if (trimmed === '') continue
+          writePath(path, trimmed)
+        }
+        for (const [key, value] of this.memoryStaged) {
+          if (typeof value === 'boolean') { writePath(key, value); continue }
+          const trimmed = value.trim()
+          if (trimmed !== '') writePath(key, trimmed)
         }
         if (Object.keys(backendPatch).length > 0) {
           const error = await this.backendClient.saveSettings(backendPatch)
@@ -379,6 +489,7 @@ export class VoiceSettingsCardController {
 
       for (const field of Object.keys(patch)) this.staged.delete(field as CardTextFieldKey)
       this.credentialDrafts.clear()
+      this.memoryStaged.clear()
       this.stagedAutoStart = undefined
       this.stagedProvider = undefined
       this.stagedModel = undefined

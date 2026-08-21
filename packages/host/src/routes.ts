@@ -121,6 +121,22 @@ export function registerVoiceSpiritRoutes(ctx: Context, gateway: VoiceSpiritGate
         respondProxyResult(res, await gateway.fetchProviderModels(body.provider, body.apiKey, body.baseUrl))
       },
     },
+    {
+      // EverMemOS conversation group registration. Credentials stay server
+      // side: the gateway composes the X-EverMem-* headers from the backend's
+      // stored memory_settings before forwarding.
+      kind: 'exact',
+      path: `${VOICESPIRIT_API_PATH}/evermem/conversation-meta`,
+      handler: async (req, res) => {
+        const body = await readJsonBody(req) as { groupId?: string } | undefined
+        respondProxyResult(
+          res,
+          await gateway.createEvermemConversationMeta(
+            typeof body?.groupId === 'string' ? body.groupId : undefined,
+          ),
+        )
+      },
+    },
   ]
   for (const route of routes) {
     ctx.effect(() => ctx.webServer.register(route), `host-voicespirit: ${route.kind} ${route.path}`)
@@ -151,20 +167,39 @@ async function proxyVoiceChatWebSocket(
       handshakeTimeout: 10_000,
     })
     let closed = false
+    // Frames the browser sends while the upstream handshake is still in
+    // flight (the engine posts its memory config straight from onopen).
+    // Dropped frames here would silently disable memory for the whole call.
+    const pendingFrames: Array<{ data: WebSocket.RawData, isBinary: boolean }> = []
+    const MAX_PENDING_FRAMES = 64
     const closeDownstream = (code: number, reason: string): void => {
       if (closed) return
       closed = true
       try { client.close(code, reason.slice(0, 100)) } catch { client.terminate() }
       try { upstream.close() } catch { upstream.terminate() }
     }
+    const flushPending = (): void => {
+      for (const frame of pendingFrames.splice(0, pendingFrames.length)) {
+        upstream.send(frame.data, { binary: frame.isBinary })
+      }
+    }
     upstream.on('open', () => {
       ctx.logger.debug('host-voicespirit: realtime upstream connected')
+      flushPending()
     })
     upstream.on('message', (data, isBinary) => {
       if (client.readyState === WebSocket.OPEN) client.send(data, { binary: isBinary })
     })
     client.on('message', (data, isBinary) => {
-      if (upstream.readyState === WebSocket.OPEN) upstream.send(data, { binary: isBinary })
+      if (upstream.readyState === WebSocket.OPEN) {
+        upstream.send(data, { binary: isBinary })
+        return
+      }
+      if (pendingFrames.length < MAX_PENDING_FRAMES) {
+        pendingFrames.push({ data, isBinary })
+      } else {
+        ctx.logger.warn('host-voicespirit: dropped a client frame — upstream still connecting and buffer full')
+      }
     })
     upstream.on('close', (code, reason) => {
       closeDownstream(code, reason.toString('utf-8') || 'upstream closed')

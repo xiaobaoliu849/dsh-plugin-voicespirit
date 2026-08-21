@@ -101,6 +101,21 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
         <div className={styles.vsModelBadge} title={providerLabel}>
           {providerLabel}
         </div>
+
+        {/* EverMemOS memory badge: active shows the last injected count */}
+        {snapshot.memory !== undefined && (
+          <div
+            className={styles.vsModelBadge}
+            title={snapshot.memory.active
+              ? `${t('memoryChip')} · ${t('memoryReady')}`
+              : t('memoryInactive')}
+          >
+            {snapshot.memory.active ? t('memoryChip') : t('memoryChipOff')}
+            {snapshot.memory.active && snapshot.memory.retrieved > 0
+              ? ` · ${String(snapshot.memory.retrieved)} ${t('memoryRetrieved')}`
+              : ''}
+          </div>
+        )}
       </div>
 
       <div className={styles.vsDockRight}>

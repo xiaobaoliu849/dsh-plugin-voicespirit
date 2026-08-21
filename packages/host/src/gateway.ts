@@ -195,6 +195,34 @@ export class VoiceSpiritGateway {
   }
 
   /**
+   * Register (or look up) an EverMemOS conversation group for this call. The
+   * EverMem credentials never leave the server side of the harness: the
+   * X-EverMem-* headers are composed here from the backend's stored
+   * `memory_settings`, mirroring how the realtime session reads them from the
+   * client `config` message.
+   * @param groupId - existing group to reuse; empty creates a fresh group.
+   */
+  async createEvermemConversationMeta(groupId?: string): Promise<
+    { ok: true; value: unknown } | { ok: false; status: number; message: string }
+  > {
+    const document = await this.getBackendSettings()
+    if (!document.ok) return document
+    const memory = readMemorySettings(document.value)
+    if (memory === undefined || !memory.enabled || memory.api_key === '') {
+      return { ok: false, status: 400, message: 'EverMem is not enabled or has no API key in the backend settings' }
+    }
+    if (memory.temporary_session) {
+      return { ok: false, status: 400, message: 'EverMem temporary-session mode is on — memory writes are suspended' }
+    }
+    const normalizedGroup = (groupId ?? '').trim()
+    return this.proxyJson('/api/evermem/conversation-meta', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(normalizedGroup === '' ? {} : { group_id: normalizedGroup }),
+    }, evermemHeaders(memory))
+  }
+
+  /**
    * Bearer token for the realtime WebSocket handshake and the settings proxy.
    * The token this plugin injected at spawn time comes first; the user-level
    * token covers an adopted backend.
@@ -360,9 +388,10 @@ export class VoiceSpiritGateway {
 
   /**
    * Proxy one JSON call to the backend with the strongest token in hand.
+   * @param extraHeaders - appended after the auth header (EverMem forwarding).
    * @returns the parsed body, or `{ok: false}` with the backend status code.
    */
-  private async proxyJson(path: string, init: RequestInit): Promise<
+  private async proxyJson(path: string, init: RequestInit, extraHeaders?: Record<string, string>): Promise<
     { ok: true; value: unknown } | { ok: false; status: number; message: string }
   > {
     const probe = await this.probe()
@@ -376,6 +405,7 @@ export class VoiceSpiritGateway {
         headers: {
           ...init.headers,
           ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
+          ...extraHeaders,
         },
         signal: AbortSignal.timeout(15_000),
       })
@@ -496,5 +526,51 @@ export class VoiceSpiritGateway {
       if (existsSync(candidate)) return candidate
     }
     return process.platform === 'win32' ? 'python.exe' : 'python3'
+  }
+}
+
+/** The EverMemOS section of the backend settings document. */
+export interface BackendMemorySettings {
+  enabled: boolean
+  api_url: string
+  api_key: string
+  scope_id: string
+  temporary_session: boolean
+  remember_voice_chat: boolean
+}
+
+/**
+ * Read the `memory_settings` section out of a backend settings document,
+ * normalizing to strings/booleans with the backend's own defaults.
+ */
+export function readMemorySettings(document: unknown): BackendMemorySettings | undefined {
+  if (typeof document !== 'object' || document === null) return undefined
+  const settings = (document as { settings?: unknown }).settings ?? document
+  if (typeof settings !== 'object' || settings === null) return undefined
+  const raw = (settings as Record<string, unknown>)['memory_settings']
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const memory = raw as Record<string, unknown>
+  const text = (key: string): string => {
+    const value = memory[key]
+    return typeof value === 'string' ? value.trim() : ''
+  }
+  const flag = (key: string): boolean => memory[key] === true
+  return {
+    enabled: flag('enabled'),
+    api_url: text('api_url') || 'https://api.evermind.ai',
+    api_key: text('api_key'),
+    scope_id: text('scope_id'),
+    temporary_session: flag('temporary_session'),
+    remember_voice_chat: memory['remember_voice_chat'] !== false,
+  }
+}
+
+/** X-EverMem-* headers the backend's HTTP routes read the config from. */
+function evermemHeaders(memory: BackendMemorySettings): Record<string, string> {
+  return {
+    'X-EverMem-Enabled': 'true',
+    'X-EverMem-Url': memory.api_url,
+    ...(memory.api_key === '' ? {} : { 'X-EverMem-Key': memory.api_key }),
+    ...(memory.scope_id === '' ? {} : { 'X-EverMem-Scope': memory.scope_id }),
   }
 }

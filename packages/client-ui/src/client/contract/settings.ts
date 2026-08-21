@@ -255,3 +255,80 @@ export function readBackendPath(document: BackendSettingsDocument | undefined, p
   }
   return typeof cursor === 'string' ? cursor : ''
 }
+
+/** Read a boolean dotted path from the backend document; undefined when absent. */
+export function readBackendFlag(document: BackendSettingsDocument | undefined, path: string): boolean | undefined {
+  if (document === undefined) return undefined
+  let cursor: unknown = document.settings ?? document
+  for (const segment of path.split('.')) {
+    if (typeof cursor !== 'object' || cursor === null) return undefined
+    cursor = (cursor as Record<string, unknown>)[segment]
+  }
+  return typeof cursor === 'boolean' ? cursor : undefined
+}
+
+/** The `memory_settings` section of the backend document, as the card edits it. */
+export interface MemorySettingsView {
+  /** Master switch persisted as `memory_settings.enabled`. */
+  enabled: boolean
+  /** Suspend all cloud reads/writes for this run (`temporary_session`). */
+  temporarySession: boolean
+  /** Let realtime voice turns learn and recall (`remember_voice_chat`). */
+  rememberVoiceChat: boolean
+  /** EverMemOS endpoint, empty = backend default (`api.evermind.ai`). */
+  apiUrl: string
+  /** EverMemOS access key, empty until configured. */
+  apiKey: string
+  /** Cloud namespace partition; empty defers to the backend scope. */
+  scopeId: string
+}
+
+/**
+ * Extract the memory section from a backend settings document, applying the
+ * backend defaults for anything absent (remember_voice_chat defaults on).
+ */
+export function readMemorySettingsView(document: BackendSettingsDocument | undefined): MemorySettingsView {
+  const text = (path: string): string => readBackendPath(document, path).trim()
+  return {
+    enabled: readBackendFlag(document, 'memory_settings.enabled') === true,
+    temporarySession: readBackendFlag(document, 'memory_settings.temporary_session') === true,
+    rememberVoiceChat: readBackendFlag(document, 'memory_settings.remember_voice_chat') !== false,
+    apiUrl: text('memory_settings.api_url'),
+    apiKey: text('memory_settings.api_key'),
+    scopeId: text('memory_settings.scope_id'),
+  }
+}
+
+/** The `memory` payload the engine sends in the WS `config` message. */
+export interface EvermemSessionConfig {
+  enabled: true
+  api_url: string
+  api_key?: string
+  scope_id?: string
+  group_id?: string
+}
+
+export const DEFAULT_EVERMEM_URL = 'https://api.evermind.ai'
+
+/**
+ * Build the realtime session's memory payload from the stored settings.
+ * @returns undefined when memory is off for voice calls (disabled, temporary
+ * session, scene toggle off, or no API key) — the engine then sends no config.
+ */
+export function buildMemorySessionConfig(
+  view: MemorySettingsView,
+  groupId?: string,
+): EvermemSessionConfig | undefined {
+  if (!view.enabled || view.temporarySession || !view.rememberVoiceChat) return undefined
+  const apiKey = view.apiKey.trim()
+  if (apiKey === '') return undefined
+  const scopeId = view.scopeId.trim()
+  const group = groupId?.trim() ?? ''
+  return {
+    enabled: true,
+    api_url: view.apiUrl.trim() || DEFAULT_EVERMEM_URL,
+    api_key: apiKey,
+    ...(scopeId === '' ? {} : { scope_id: scopeId }),
+    ...(group === '' ? {} : { group_id: group }),
+  }
+}

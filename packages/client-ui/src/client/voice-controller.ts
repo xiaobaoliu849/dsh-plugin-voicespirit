@@ -16,11 +16,15 @@ import {
 } from './engine/VoiceAudioEngine.ts'
 import { VoiceSpiritBackend, type VoiceSpiritBackendState } from './backend.ts'
 import {
+  buildMemorySessionConfig,
   providerEntry,
+  readMemorySettingsView,
   VOICESPIRIT_SETTINGS_NAMESPACE,
   type BackendSettingsDocument,
+  type MemorySettingsView,
   type VoiceSpiritSettings,
 } from './contract/settings.ts'
+import type { VoiceMemoryState } from './engine/VoiceAudioEngine.ts'
 import type { VoiceSpiritKey } from './locales.ts'
 
 /** Everything the UI surfaces read. */
@@ -53,6 +57,8 @@ export interface VoiceSpiritUiState {
   launching: boolean
   /** Transcript of the call that just ended, kept until dismissed or redialed. */
   lastCall: VoiceLastCall | undefined
+  /** EverMemOS state reported by the backend for the session; undefined when off. */
+  memory: VoiceMemoryState | undefined
 }
 
 /** The ended call the dock keeps on screen for review and copying. */
@@ -64,12 +70,15 @@ export interface VoiceLastCall {
 }
 
 const HISTORY_CAP = 30
+/** Session-scoped EverMemOS conversation group; a fresh tab starts a new thread. */
+const EVERMEM_GROUP_STORAGE_KEY = 'voicespirit_evermem_voice_group'
 
 export class VoiceSpiritController {
   private readonly engine: VoiceAudioEngine
   private readonly backendClient = new VoiceSpiritBackend()
   private readonly listeners = new Set<() => void>()
   private readonly historyTurns: VoiceTranscriptTurn[] = []
+  private memorySettings: MemorySettingsView | undefined
 
   private micLevel = 0
   private speakerLevel = 0
@@ -142,6 +151,7 @@ export class VoiceSpiritController {
       immersiveOpen: this.immersiveOpen,
       launching: this.launching,
       lastCall: this.lastCall,
+      memory: this.engine.getState().memory,
     }
   }
 
@@ -188,10 +198,56 @@ export class VoiceSpiritController {
         this.launching = false
       }
     }
+    // Memory rides the session handshake: resolve it from the backend's stored
+    // settings right before connecting so edits apply from the very next call.
+    await this.applyMemoryConfig()
     this.engine.start().catch((error: unknown) => {
       console.error('[ui-voicespirit] start failed:', error)
     })
     this.publish()
+  }
+
+  /**
+   * Resolve the EverMemOS payload for this call: read the backend's stored
+   * memory settings, reuse (or register) the browser session's conversation
+   * group, and hand the assembled config to the engine.
+   */
+  private async applyMemoryConfig(): Promise<void> {
+    const document = await this.backendClient.fetchSettings()
+    if (document === undefined) return
+    const view = readMemorySettingsView(document)
+    this.memorySettings = view
+    const groupId = this.recallEvermemGroup(view)
+    const memory = buildMemorySessionConfig(view, groupId)
+    this.engine.updateOptions({ memory })
+  }
+
+  /** Reuse this tab's EverMemOS conversation group when memory is usable for voice. */
+  private recallEvermemGroup(view: MemorySettingsView): string | undefined {
+    if (!view.enabled || view.temporarySession || !view.rememberVoiceChat || view.apiKey.trim() === '') {
+      return undefined
+    }
+    try {
+      return window.sessionStorage.getItem(EVERMEM_GROUP_STORAGE_KEY) ?? undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  /** Register a fresh EverMemOS conversation group; exposed for the settings card. */
+  async registerEvermemGroup(): Promise<string | undefined> {
+    const group = await this.backendClient.fetchConversationMeta(
+      window.sessionStorage.getItem(EVERMEM_GROUP_STORAGE_KEY) ?? undefined,
+    )
+    if (group !== undefined) {
+      try { window.sessionStorage.setItem(EVERMEM_GROUP_STORAGE_KEY, group) } catch { /* storage unavailable */ }
+    }
+    return group
+  }
+
+  /** Stored memory settings as last resolved from the backend document. */
+  getMemorySettings(): MemorySettingsView | undefined {
+    return this.memorySettings
   }
 
   endCall(): void {

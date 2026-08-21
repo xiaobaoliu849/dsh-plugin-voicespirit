@@ -129,6 +129,30 @@ export class VoiceSpiritBackend {
   }
 
   /**
+   * Register (or reuse) an EverMemOS conversation group through the host, which
+   * composes the EverMem headers server-side from the stored memory settings.
+   * @returns the resolved group id, or undefined when memory is not usable.
+   */
+  async fetchConversationMeta(groupId?: string): Promise<string | undefined> {
+    try {
+      const response = await fetch(`${API_ROOT}/evermem/conversation-meta`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(groupId === undefined ? {} : { groupId }),
+        signal: AbortSignal.timeout(15_000),
+      })
+      const body = await response.json() as
+        { ok: boolean, error?: string, value?: { group_id?: string } }
+      const group = body.value?.group_id
+      return response.ok && body.ok && typeof group === 'string' && group.trim() !== ''
+        ? group.trim()
+        : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  /**
    * Ask the backend to list a provider's models with a candidate credential.
    * @returns the model ids, or the failure message.
    */

@@ -10,10 +10,28 @@
  * for users pointing at a remote gateway that authenticates by query token.
  */
 
+import type { EvermemSessionConfig } from '../contract/settings.ts'
+
 export type VoiceEnginePhase = 'idle' | 'connecting' | 'listening' | 'speaking' | 'interrupted' | 'error'
 
 /** Stable error classes the UI translates; the raw message rides alongside. */
 export type VoiceEngineErrorCode = 'auth' | 'unreachable' | 'microphone' | 'server' | 'unknown'
+
+/** Live EverMemOS state as the backend reports it over the session. */
+export interface VoiceMemoryState {
+  /** Backend confirmed the memory session is active (config accepted with a key). */
+  active: boolean
+  /** Cloud namespace the backend resolved for this session. */
+  scope: string
+  /** Conversation group the memories attach to, when one was registered. */
+  group: string
+  /** Memories injected into the last turn's instructions. */
+  retrieved: number
+  /** Entries persisted after the last completed turn. */
+  saved: number
+  /** Why the last turn wrote nothing (empty = success or nothing yet). */
+  writeReason: string
+}
 
 export interface VoiceEngineState {
   phase: VoiceEnginePhase
@@ -22,6 +40,8 @@ export interface VoiceEngineState {
   provider: string
   model: string
   voice: string
+  /** Memory state once the backend answers the config message; undefined before. */
+  memory?: VoiceMemoryState | undefined
   errorMessage?: string | undefined
   errorCode?: VoiceEngineErrorCode | undefined
 }
@@ -31,6 +51,8 @@ export interface VoiceCallOptions {
   provider?: string | undefined
   model?: string | undefined
   voice?: string | undefined
+  /** EverMemOS payload sent in the session `config` message; undefined = memory off. */
+  memory?: EvermemSessionConfig | undefined
   onStateChange?: ((state: VoiceEngineState) => void) | undefined
   onLevelsChange?: ((micLevel: number, speakerLevel: number, micBands: number[], speakerBands: number[]) => void) | undefined
   onTranscriptChange?: ((userText: string, isInterim: boolean, assistantText: string) => void) | undefined
@@ -57,6 +79,14 @@ interface VoiceServerEvent {
   turn_id?: string
   interrupted?: boolean
   message?: string
+  // memory_config / memory_context / memory_write payloads
+  enabled?: boolean
+  scope?: string
+  group_id?: string
+  memories_retrieved?: number
+  saved_count?: number
+  reason?: string
+  attempted?: boolean
 }
 
 /** Spectrum slots the level monitor reports; the dock waveform renders one bar each. */
@@ -118,6 +148,7 @@ export class VoiceAudioEngine {
   private phase: VoiceEnginePhase = 'idle'
   private errorMessage: string = ''
   private errorCode: VoiceEngineErrorCode = 'unknown'
+  private memory: VoiceMemoryState | undefined
 
   private currentUserText: string = ''
   private currentAssistantText: string = ''
@@ -155,6 +186,7 @@ export class VoiceAudioEngine {
       provider: this.options.provider || '',
       model: this.options.model || '',
       voice: this.options.voice || '',
+      memory: this.memory,
       errorMessage: this.errorMessage === '' ? undefined : this.errorMessage,
       errorCode: this.phase === 'error' ? this.errorCode : undefined,
     }
@@ -167,6 +199,14 @@ export class VoiceAudioEngine {
     this.errorMessage = ''
     this.errorCode = 'unknown'
     this.serverErrorMessage = undefined
+    this.memory = this.options.memory === undefined ? undefined : {
+      active: false,
+      scope: '',
+      group: '',
+      retrieved: 0,
+      saved: 0,
+      writeReason: '',
+    }
 
     try {
       // 1. Initialize WebAudio & Microphone
@@ -179,6 +219,11 @@ export class VoiceAudioEngine {
 
       this.ws.onopen = () => {
         this.isConnected = true
+        // Memory config rides the first client message: the backend applies it
+        // to every subsequent turn (retrieval injection + turn-final writes).
+        if (this.options.memory !== undefined && this.ws !== null && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({ type: 'config', memory: this.options.memory }))
+        }
         this.setPhase('listening')
       }
 
@@ -470,6 +515,39 @@ export class VoiceAudioEngine {
           this.currentAssistantText = ''
           this.isUserInterim = false
           this.setPhase('listening')
+          break
+
+        case 'memory_config':
+          this.memory = {
+            active: msg.enabled === true,
+            scope: typeof msg.scope === 'string' ? msg.scope : '',
+            group: typeof msg.group_id === 'string' ? msg.group_id : '',
+            retrieved: 0,
+            saved: 0,
+            writeReason: '',
+          }
+          this.notifyState()
+          break
+
+        case 'memory_context':
+          if (this.memory !== undefined && msg.attempted !== false) {
+            this.memory = {
+              ...this.memory,
+              retrieved: typeof msg.memories_retrieved === 'number' ? msg.memories_retrieved : 0,
+            }
+            this.notifyState()
+          }
+          break
+
+        case 'memory_write':
+          if (this.memory !== undefined) {
+            this.memory = {
+              ...this.memory,
+              saved: typeof msg.saved_count === 'number' ? msg.saved_count : 0,
+              writeReason: typeof msg.reason === 'string' ? msg.reason : '',
+            }
+            this.notifyState()
+          }
           break
 
         case 'error': {
