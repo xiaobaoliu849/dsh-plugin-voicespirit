@@ -3,9 +3,17 @@
  * Handles microphone downsampling to 16kHz PCM mono, streaming over WebSocket,
  * receiving and decoding low-latency audio chunks, dynamic volume monitoring,
  * and generational barge-in / interruption clearing.
+ *
+ * The WebSocket target defaults to the harness-host proxy route
+ * (`/api/voicespirit/ws`): the host folds backend authentication in, so the
+ * browser holds no credential. A direct `gatewayUrl` override keeps working
+ * for users pointing at a remote gateway that authenticates by query token.
  */
 
 export type VoiceEnginePhase = 'idle' | 'connecting' | 'listening' | 'speaking' | 'interrupted' | 'error'
+
+/** Stable error classes the UI translates; the raw message rides alongside. */
+export type VoiceEngineErrorCode = 'auth' | 'unreachable' | 'microphone' | 'server' | 'unknown'
 
 export interface VoiceEngineState {
   phase: VoiceEnginePhase
@@ -14,9 +22,8 @@ export interface VoiceEngineState {
   provider: string
   model: string
   voice: string
-  token?: string | undefined
-  apiKey?: string | undefined
   errorMessage?: string | undefined
+  errorCode?: VoiceEngineErrorCode | undefined
 }
 
 export interface VoiceCallOptions {
@@ -24,13 +31,11 @@ export interface VoiceCallOptions {
   provider?: string | undefined
   model?: string | undefined
   voice?: string | undefined
-  token?: string | undefined
-  apiKey?: string | undefined
   onStateChange?: ((state: VoiceEngineState) => void) | undefined
-  onLevelsChange?: ((micLevel: number, speakerLevel: number) => void) | undefined
+  onLevelsChange?: ((micLevel: number, speakerLevel: number, micBands: number[], speakerBands: number[]) => void) | undefined
   onTranscriptChange?: ((userText: string, isInterim: boolean, assistantText: string) => void) | undefined
   onTurnComplete?: ((turn: VoiceTranscriptTurn) => void) | undefined
-  onError?: ((error: string) => void) | undefined
+  onError?: ((error: { code: VoiceEngineErrorCode, message: string }) => void) | undefined
 }
 
 export interface VoiceTranscriptTurn {
@@ -41,11 +46,20 @@ export interface VoiceTranscriptTurn {
   interrupted?: boolean
 }
 
-const STORAGE_KEY = 'voicespirit_plugin_config'
-const DEFAULT_LOCAL_TOKEN = 'vsu.eyJhZG1pbiI6dHJ1ZSwiZXhwIjoxNzg5NzQ2ODA0LCJpYXQiOjE3ODcxNTQ4MDQsInN1YiI6IjM4MTQ1MDM5M0BxcS5jb20ifQ.PoPHWmVDvAyHfPnnLUEEJd3F9Ka2RdevoZ2NPfdATV4'
+/** Spectrum slots the level monitor reports; the dock waveform renders one bar each. */
+export const SPECTRUM_BANDS = 8
+
+/** The harness proxy route when the UI is served by the harness web server. */
+export function deriveProxyGatewayUrl(): string {
+  if (typeof window === 'undefined' || window.location === undefined) {
+    return 'ws://127.0.0.1:3080/api/voicespirit/ws'
+  }
+  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  return `${scheme}://${window.location.host}/api/voicespirit/ws`
+}
 
 function normalizeGatewayUrl(url?: string): string {
-  let base = (url || '').trim() || 'ws://127.0.0.1:8000/api/voice-chat/ws'
+  let base = (url || '').trim() || deriveProxyGatewayUrl()
   if (base.startsWith('http://')) {
     base = base.replace('http://', 'ws://')
   } else if (base.startsWith('https://')) {
@@ -57,6 +71,23 @@ function normalizeGatewayUrl(url?: string): string {
   return base
 }
 
+/** Average one log-spaced band of an FFT frame into a 0..1 level. */
+function extractBands(data: Uint8Array, edges: number[]): number[] {
+  const bands: number[] = []
+  for (let b = 0; b < edges.length - 1; b++) {
+    const start = edges[b]!
+    const end = Math.min(edges[b + 1]!, data.length)
+    let sum = 0
+    let count = 0
+    for (let i = start; i < end; i++) {
+      sum += data[i] ?? 0
+      count++
+    }
+    bands.push(count > 0 ? sum / count / 255 : 0)
+  }
+  return bands
+}
+
 export class VoiceAudioEngine {
   private options: VoiceCallOptions
   private audioCtx: AudioContext | null = null
@@ -66,16 +97,22 @@ export class VoiceAudioEngine {
   private micAnalyser: AnalyserNode | null = null
   private speakerAnalyser: AnalyserNode | null = null
   private micGain: GainNode | null = null
+  private micSink: GainNode | null = null
 
   private ws: WebSocket | null = null
   private isMuted: boolean = false
   private isConnected: boolean = false
   private phase: VoiceEnginePhase = 'idle'
   private errorMessage: string = ''
+  private errorCode: VoiceEngineErrorCode = 'unknown'
 
   private currentUserText: string = ''
   private currentAssistantText: string = ''
   private isUserInterim: boolean = false
+
+  // Last `error` event text from the backend; takes precedence over the
+  // generic close-code diagnosis so config problems surface verbatim.
+  private serverErrorMessage: string | undefined
 
   // Playback scheduler & interruption generation counter
   private playbackGeneration: number = 0
@@ -85,53 +122,12 @@ export class VoiceAudioEngine {
   private levelIntervalId: number | null = null
 
   constructor(options: VoiceCallOptions = {}) {
-    let savedConfig: any = {}
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) savedConfig = JSON.parse(raw)
-    } catch {}
-
-    const resolvedGateway = normalizeGatewayUrl(savedConfig.gatewayUrl || options.gatewayUrl)
-
-    let defaultProvider = options.provider || savedConfig.provider || 'Cartesia'
-    let defaultModel = options.model || savedConfig.model || 'cartesia-realtime'
-    let defaultVoice = options.voice || savedConfig.voice || 'f786b574-daa5-4673-aa0c-cbe3e8534c02'
-
-    if (defaultModel === 'qwen-omni-turbo-realtime' || defaultModel === 'qwen3.5-omni-plus-realtime') {
-      defaultProvider = 'Cartesia'
-      defaultModel = 'cartesia-realtime'
-      defaultVoice = 'f786b574-daa5-4673-aa0c-cbe3e8534c02'
-    }
-
-    this.options = {
-      gatewayUrl: resolvedGateway,
-      provider: defaultProvider,
-      model: defaultModel,
-      voice: defaultVoice,
-      token: savedConfig.token || options.token || DEFAULT_LOCAL_TOKEN,
-      apiKey: savedConfig.apiKey || options.apiKey || '',
-      ...options,
-    }
+    this.options = { ...options }
   }
 
   public updateOptions(newOptions: Partial<VoiceCallOptions>): void {
-    if (newOptions.gatewayUrl) {
-      newOptions.gatewayUrl = normalizeGatewayUrl(newOptions.gatewayUrl)
-    }
     this.options = { ...this.options, ...newOptions }
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          gatewayUrl: this.options.gatewayUrl,
-          provider: this.options.provider,
-          model: this.options.model,
-          voice: this.options.voice,
-          token: this.options.token,
-          apiKey: this.options.apiKey,
-        }),
-      )
-    } catch {}
+    this.notifyState()
   }
 
   public getGatewayUrl(): string {
@@ -143,12 +139,11 @@ export class VoiceAudioEngine {
       phase: this.phase,
       isConnected: this.isConnected,
       isMuted: this.isMuted,
-      provider: this.options.provider || 'Cartesia',
-      model: this.options.model || 'cartesia-realtime',
-      voice: this.options.voice || 'f786b574-daa5-4673-aa0c-cbe3e8534c02',
-      token: this.options.token,
-      apiKey: this.options.apiKey,
-      errorMessage: this.errorMessage,
+      provider: this.options.provider || '',
+      model: this.options.model || '',
+      voice: this.options.voice || '',
+      errorMessage: this.errorMessage === '' ? undefined : this.errorMessage,
+      errorCode: this.phase === 'error' ? this.errorCode : undefined,
     }
   }
 
@@ -157,6 +152,8 @@ export class VoiceAudioEngine {
 
     this.setPhase('connecting')
     this.errorMessage = ''
+    this.errorCode = 'unknown'
+    this.serverErrorMessage = undefined
 
     try {
       // 1. Initialize WebAudio & Microphone
@@ -164,12 +161,10 @@ export class VoiceAudioEngine {
 
       // 2. Build WebSocket URL and Connect
       const wsUrl = this.buildWsUrl()
-      console.log('[VoiceAudioEngine] Connecting to WebSocket:', wsUrl)
       this.ws = new WebSocket(wsUrl)
       this.ws.binaryType = 'arraybuffer'
 
       this.ws.onopen = () => {
-        console.log('[VoiceAudioEngine] WebSocket connected!')
         this.isConnected = true
         this.setPhase('listening')
       }
@@ -178,19 +173,38 @@ export class VoiceAudioEngine {
         this.handleWsMessage(event.data)
       }
 
-      this.ws.onerror = (err) => {
-        console.error('[VoiceAudioEngine] WebSocket error:', err)
-        this.errorMessage = 'WebSocket 连接错误，请检查网关地址或鉴权 Token'
-        this.setPhase('error')
-        this.options.onError?.(this.errorMessage)
+      this.ws.onerror = () => {
+        this.fail('unreachable', 'VOICE_ENGINE_WS_ERROR')
       }
 
       this.ws.onclose = (ev) => {
-        console.log('[VoiceAudioEngine] WebSocket closed:', ev.code, ev.reason)
+        const wasLive = this.isConnected
+          || this.phase === 'listening'
+          || this.phase === 'speaking'
+          || this.phase === 'connecting'
+        // The backend reports its own failure (bad key, missing realtime URL)
+        // with an `error` event right before closing — show that, not a
+        // generic close-code guess.
+        if (this.serverErrorMessage !== undefined) {
+          this.fail('server', this.serverErrorMessage)
+          this.stop(false, true)
+          return
+        }
         if (ev.code === 1008) {
-          this.errorMessage = '鉴权失败 (HTTP 403 / 1008): 请在语音设置中配置有效的 Token'
-          this.setPhase('error')
-          this.options.onError?.(this.errorMessage)
+          this.fail('auth', `close ${ev.code}`)
+          this.stop(false, true)
+          return
+        }
+        if (ev.code === 1013) {
+          // The proxy closes with 1013 while the backend is down or starting.
+          this.fail('unreachable', ev.reason || 'backend unavailable')
+          this.stop(false, true)
+          return
+        }
+        if (wasLive) {
+          this.fail('unreachable', `close ${ev.code}`)
+          this.stop(false, true)
+          return
         }
         if (this.phase !== 'idle') {
           this.stop(false)
@@ -200,20 +214,27 @@ export class VoiceAudioEngine {
       this.startLevelMonitor()
     } catch (err: any) {
       console.error('[VoiceAudioEngine] Failed to start:', err)
-      this.errorMessage = err.message || '无法访问麦克风或建立音频连接'
-      this.setPhase('error')
-      this.options.onError?.(this.errorMessage)
+      this.fail('microphone', err?.message || 'microphone unavailable')
       this.stop(false)
     }
   }
 
-  public stop(sendClose: boolean = true): void {
+  /**
+   * Tear the audio pipeline and socket down.
+   * @param sendClose - close the WebSocket politely when open.
+   * @param keepError - keep the error phase (and its message) visible after teardown.
+   */
+  public stop(sendClose: boolean = true, keepError: boolean = false): void {
     this.stopLevelMonitor()
     this.clearAudioPlayback()
 
     if (this.micProcessor) {
       this.micProcessor.disconnect()
       this.micProcessor = null
+    }
+    if (this.micSink) {
+      this.micSink.disconnect()
+      this.micSink = null
     }
     if (this.micSource) {
       this.micSource.disconnect()
@@ -240,6 +261,10 @@ export class VoiceAudioEngine {
     }
 
     this.isConnected = false
+    if (keepError && this.phase === 'error') {
+      this.notifyState()
+      return
+    }
     this.setPhase('idle')
   }
 
@@ -289,9 +314,14 @@ export class VoiceAudioEngine {
     if (this.options.provider) url.searchParams.set('provider', this.options.provider)
     if (this.options.model) url.searchParams.set('model', this.options.model)
     if (this.options.voice) url.searchParams.set('voice', this.options.voice)
-    if (this.options.token) url.searchParams.set('token', this.options.token)
-    if (this.options.apiKey) url.searchParams.set('api_key', this.options.apiKey)
     return url.toString()
+  }
+
+  private fail(code: VoiceEngineErrorCode, detail: string): void {
+    this.errorCode = code
+    this.errorMessage = detail
+    this.setPhase('error')
+    this.options.onError?.({ code, message: detail })
   }
 
   private async initAudioInput(): Promise<void> {
@@ -338,7 +368,13 @@ export class VoiceAudioEngine {
     }
 
     this.micGain.connect(this.micProcessor)
-    this.micProcessor.connect(this.audioCtx.destination)
+    // ScriptProcessorNode only runs when wired into the destination graph, but
+    // a direct connection would play the microphone back out loud. A zero-gain
+    // sink keeps the graph alive without monitoring the input.
+    this.micSink = this.audioCtx.createGain()
+    this.micSink.gain.value = 0
+    this.micProcessor.connect(this.micSink)
+    this.micSink.connect(this.audioCtx.destination)
   }
 
   private handleWsMessage(data: any): void {
@@ -391,6 +427,7 @@ export class VoiceAudioEngine {
 
         case 'interruption':
         case 'interrupted':
+        case 'interruption_pending':
           this.setPhase('interrupted')
           this.clearAudioPlayback()
           setTimeout(() => {
@@ -418,11 +455,17 @@ export class VoiceAudioEngine {
           this.setPhase('listening')
           break
 
-        case 'error':
+        case 'error': {
           console.error('[VoiceAudioEngine] Server error message:', msg.message)
-          this.errorMessage = msg.message || '语音服务处理异常'
-          this.options.onError?.(this.errorMessage)
+          const serverMessage = typeof msg.message === 'string' && msg.message !== ''
+            ? msg.message
+            : 'voice service error'
+          this.serverErrorMessage = serverMessage
+          this.errorCode = 'server'
+          this.errorMessage = serverMessage
+          this.options.onError?.({ code: 'server', message: serverMessage })
           break
+        }
       }
     } catch (e) {
       console.warn('[VoiceAudioEngine] Failed to parse message:', e)
@@ -485,18 +528,34 @@ export class VoiceAudioEngine {
 
   private startLevelMonitor(): void {
     if (this.levelIntervalId !== null) return
-    const micData = new Uint8Array(128)
-    const spkData = new Uint8Array(128)
+    const binCount = 128
+    const micData = new Uint8Array(binCount)
+    const spkData = new Uint8Array(binCount)
+
+    // Log-spaced band edges over the voice-relevant range (~150 Hz – 7.5 kHz):
+    // a linear split would leave every upper band dead, since both the mic
+    // uplink and the playback path are band-limited telephony audio. The
+    // sample rate is fixed per context, so the edges are computed once.
+    const binHz = (this.audioCtx?.sampleRate ?? 48000) / (binCount * 2)
+    const minBin = 2
+    const maxBin = Math.max(minBin + SPECTRUM_BANDS, Math.min(binCount - 1, Math.floor(7500 / binHz)))
+    const edges: number[] = []
+    for (let i = 0; i <= SPECTRUM_BANDS; i++) {
+      edges.push(Math.round(minBin * Math.pow(maxBin / minBin, i / SPECTRUM_BANDS)))
+    }
 
     this.levelIntervalId = window.setInterval(() => {
       let micVol = 0
       let spkVol = 0
+      let micBands: number[] = new Array<number>(SPECTRUM_BANDS).fill(0)
+      let spkBands: number[] = new Array<number>(SPECTRUM_BANDS).fill(0)
 
       if (this.micAnalyser) {
         this.micAnalyser.getByteFrequencyData(micData)
         let sum = 0
         for (let i = 0; i < micData.length; i++) sum += micData[i] ?? 0
         micVol = sum / micData.length / 255
+        micBands = extractBands(micData, edges)
       }
 
       if (this.speakerAnalyser) {
@@ -504,9 +563,10 @@ export class VoiceAudioEngine {
         let sum = 0
         for (let i = 0; i < spkData.length; i++) sum += spkData[i] ?? 0
         spkVol = sum / spkData.length / 255
+        spkBands = extractBands(spkData, edges)
       }
 
-      this.options.onLevelsChange?.(micVol, spkVol)
+      this.options.onLevelsChange?.(micVol, spkVol, micBands, spkBands)
     }, 60)
   }
 
@@ -515,7 +575,7 @@ export class VoiceAudioEngine {
       clearInterval(this.levelIntervalId)
       this.levelIntervalId = null
     }
-    this.options.onLevelsChange?.(0, 0)
+    this.options.onLevelsChange?.(0, 0, new Array<number>(SPECTRUM_BANDS).fill(0), new Array<number>(SPECTRUM_BANDS).fill(0))
   }
 
   private setPhase(phase: VoiceEnginePhase): void {
