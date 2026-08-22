@@ -1,20 +1,20 @@
 /**
- * The native integrated ribbon stacked directly above the composer:
- * a compact 42px status bar with live waveform, streaming transcript,
- * and quick controls. Expands to the immersive full-screen view upon request.
+ * The native integrated stage stacked directly above the composer:
+ * 1. VoiceDialogueStream: Full live conversation bubble stream in the main viewport
+ * 2. VoiceCallDockBar: A compact 42px status bar with live waveform and quick controls
+ * 3. Immersive full-screen modal view
  *
- * When a voice call is active, data-voicespirit-active snaps the input bar
- * down to the bottom of the window.
- * When a voice call ends, the transcript automatically bridges into the native
- * chat session, transitioning the interface into the standard bottom-docked
- * conversation state.
+ * When a voice call is active, data-voicespirit-active snaps the input bar down to the bottom.
+ * When a voice call ends, turns seamlessly bridge into the conversation.
  */
 
 import React, { useEffect, useState, useRef } from 'react'
 import type { VoiceSpiritController, VoiceSpiritUiState } from '../voice-controller.ts'
 import type { VoiceSpiritKey } from '../locales.ts'
+import { VoiceDialogueStream } from './VoiceDialogueStream.tsx'
 import { VoiceCallDockBar } from './VoiceCallDockBar.tsx'
 import { VoiceCallImmersiveModal } from './VoiceCallImmersiveModal.tsx'
+import styles from './VoiceCall.module.css'
 
 export interface VoiceCallDockViewProps {
   controller: VoiceSpiritController
@@ -40,8 +40,9 @@ export const VoiceCallDockView: React.FC<VoiceCallDockViewProps> = ({
 
   const { engine } = snapshot
   const callLive = engine.phase !== 'idle' || snapshot.launching
+  const hasHistory = snapshot.historyTurns.length > 0
 
-  // Automatically bridge completed voice queries into the native conversation
+  // Automatically bridge completed voice queries into the native conversation on hangup
   useEffect(() => {
     const wasLive = prevLiveRef.current
     prevLiveRef.current = callLive
@@ -65,14 +66,24 @@ export const VoiceCallDockView: React.FC<VoiceCallDockViewProps> = ({
 
   return (
     <div
-      data-voicespirit-active={callLive ? 'true' : undefined}
-      style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', boxSizing: 'border-box' }}
+      data-voicespirit-active={callLive || hasHistory ? 'true' : undefined}
+      className={styles.dockViewRoot}
     >
+      {/* 1. Main Viewport Dialogue Bubbles Stream */}
+      {(callLive || hasHistory) && (
+        <VoiceDialogueStream
+          snapshot={snapshot}
+          controller={controller}
+          t={t}
+        />
+      )}
+
+      {/* 2. Compact 42px Active Dock Ribbon */}
       {callLive && (
         <VoiceCallDockBar snapshot={snapshot} controller={controller} t={t} />
       )}
 
-      {/* Immersive full-screen call view */}
+      {/* 3. Immersive full-screen call view */}
       {snapshot.immersiveOpen && callLive && (
         <VoiceCallImmersiveModal
           snapshot={snapshot}

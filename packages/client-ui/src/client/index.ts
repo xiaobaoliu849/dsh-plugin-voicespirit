@@ -46,7 +46,7 @@ export function apply(ctx: ClientContext): void {
   )
   const card = new VoiceSettingsCardController(scope, controller.getBackendClient())
 
-  // 1. Composer mic button (bottom-right of the input toolbar)
+  // 1. Composer mic button & pre-call pill (bottom-right of the input toolbar)
   ctx.slots.inject(
     'conversation.input.right',
     () =>
@@ -59,6 +59,7 @@ export function apply(ctx: ClientContext): void {
           inject: () => {
             const snapshot = controller.getSnapshot()
             return {
+              controller,
               t,
               actions: {
                 startCall: () => { void controller.startCall() },
@@ -66,8 +67,6 @@ export function apply(ctx: ClientContext): void {
                 toggleMute: () => { controller.toggleMute() },
                 interrupt: () => { controller.interrupt() },
                 toggleImmersive: () => { controller.toggleImmersive() },
-                // An errored session reads as "not in a call": the next mic
-                // click starts a fresh attempt instead of hanging up.
                 isCallActive: snapshot.engine.phase !== 'idle' && snapshot.engine.phase !== 'error',
                 isMuted: snapshot.engine.isMuted,
               },
@@ -78,7 +77,7 @@ export function apply(ctx: ClientContext): void {
       ),
   )
 
-  // 2. VoiceSpirit integrated stage (Ribbon + Controls + Hangup)
+  // 2. VoiceSpirit integrated stage (Dialogue Stream + Ribbon + Controls + Hangup)
   //    stacked above the composer, plus the immersive full-screen view.
   ctx.slots.inject(
     'conversation.input.dock',
