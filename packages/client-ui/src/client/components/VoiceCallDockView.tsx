@@ -3,6 +3,8 @@
  * a compact 42px status bar with live waveform, streaming transcript,
  * and quick controls. Expands to the immersive full-screen view upon request.
  *
+ * When a voice call is active, data-voicespirit-active snaps the input bar
+ * down to the bottom of the window.
  * When a voice call ends, the transcript automatically bridges into the native
  * chat session, transitioning the interface into the standard bottom-docked
  * conversation state.
@@ -62,7 +64,10 @@ export const VoiceCallDockView: React.FC<VoiceCallDockViewProps> = ({
   }, [callLive, snapshot.lastCall, inputActions, controller])
 
   return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', boxSizing: 'border-box' }}>
+    <div
+      data-voicespirit-active={callLive ? 'true' : undefined}
+      style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', boxSizing: 'border-box' }}
+    >
       {callLive && (
         <VoiceCallDockBar snapshot={snapshot} controller={controller} t={t} />
       )}
