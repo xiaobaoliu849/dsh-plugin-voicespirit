@@ -83,15 +83,15 @@ const dashScopeCredentials: ProviderCredentialField[] = [
 
 const doubaoCredentials: ProviderCredentialField[] = [
   {
-    // Realtime dialogue reads this dedicated token first; api_keys.doubao_api_key
-    // remains a legacy fallback the backend honors on its own.
-    path: 'doubao_access_token',
+    // Realtime dialogue reads dedicated access token in api_keys or root;
+    // api_keys.doubao_api_key remains legacy fallback.
+    path: 'api_keys.doubao_access_token',
     labelKey: 'credDoubaoAccessToken',
     placeholderKey: 'credDoubaoAccessTokenHint',
     secret: true,
   },
   {
-    path: 'doubao_app_id',
+    path: 'api_keys.doubao_app_id',
     labelKey: 'credDoubaoAppId',
     placeholderKey: 'credDoubaoAppIdHint',
     secret: false,
@@ -263,18 +263,20 @@ export function readBackendPath(document: BackendSettingsDocument | undefined, p
   const settings = ((document.settings ?? {}) as Record<string, unknown>)
   const apiKeys = ((settings.api_keys ?? {}) as Record<string, unknown>)
 
-  if (path === 'doubao_access_token') {
+  if (path === 'api_keys.doubao_access_token' || path === 'doubao_access_token') {
+    if (typeof apiKeys.doubao_access_token === 'string' && apiKeys.doubao_access_token) return apiKeys.doubao_access_token
     if (typeof settings.doubao_access_token === 'string' && settings.doubao_access_token) return settings.doubao_access_token
     if (typeof root.doubao_access_token === 'string' && root.doubao_access_token) return root.doubao_access_token
-    if (typeof apiKeys.doubao_access_token === 'string' && apiKeys.doubao_access_token) return apiKeys.doubao_access_token
     if (typeof apiKeys.doubao_api_key === 'string' && apiKeys.doubao_api_key) return apiKeys.doubao_api_key
+    if (typeof settings.doubao_api_key === 'string' && settings.doubao_api_key) return settings.doubao_api_key
   }
-  if (path === 'doubao_app_id') {
+  if (path === 'api_keys.doubao_app_id' || path === 'doubao_app_id') {
+    if (typeof apiKeys.doubao_app_id === 'string' && apiKeys.doubao_app_id) return apiKeys.doubao_app_id
     if (typeof settings.doubao_app_id === 'string' && settings.doubao_app_id) return settings.doubao_app_id
     if (typeof root.doubao_app_id === 'string' && root.doubao_app_id) return root.doubao_app_id
-    if (typeof apiKeys.doubao_app_id === 'string' && apiKeys.doubao_app_id) return apiKeys.doubao_app_id
   }
-  if (path === 'api_keys.dashscope_api_key') {
+  if (path === 'api_keys.dashscope_api_key' || path === 'dashscope_api_key') {
+    if (typeof apiKeys.dashscope_api_key === 'string' && apiKeys.dashscope_api_key) return apiKeys.dashscope_api_key
     if (typeof settings.dashscope_api_key === 'string' && settings.dashscope_api_key) return settings.dashscope_api_key
     if (typeof root.dashscope_api_key === 'string' && root.dashscope_api_key) return root.dashscope_api_key
   }
