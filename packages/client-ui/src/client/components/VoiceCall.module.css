@@ -837,3 +837,24 @@
   font-size: 10px;
   color: var(--dsw-alias-label-caption, #6b7280);
 }
+
+/* Bottom docking and hero suppression during live voice calls */
+:global(body:has([data-voicespirit-active='true'])) [class*="HeroShell_root"],
+:global(body:has([data-voicespirit-active='true'])) [class*="HeroShell_stack"],
+:global(body:has([data-voicespirit-active='true'])) [class*="HeroShell_headline"],
+:global(body:has([data-voicespirit-active='true'])) [class*="heroGlow"],
+:global(body:has([data-voicespirit-active='true'])) [class*="heroWorkspaceRow"] {
+  display: none !important;
+}
+
+:global(body:has([data-voicespirit-active='true'])) [class*="ConversationRoot_scrollBody"],
+:global(body:has([data-voicespirit-active='true'])) [data-conversation-scroll] {
+  justify-content: flex-end !important;
+}
+
+:global(body:has([data-voicespirit-active='true'])) [class*="ConversationRoot_composerHero"] {
+  margin-top: auto !important;
+  margin-bottom: 0 !important;
+  padding-bottom: 12px !important;
+}
+
