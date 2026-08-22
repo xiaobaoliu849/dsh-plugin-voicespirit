@@ -1,76 +1,96 @@
-import React, { useState, useEffect } from 'react'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
-import type { VoiceAudioEngine, VoiceEngineState, VoiceTranscriptTurn } from '../engine/VoiceAudioEngine.ts'
-import { VoiceHeroExperience } from './VoiceHeroExperience.tsx'
+/**
+ * The native integrated stage stacked directly above the composer:
+ * 1. VoiceDialogueStream: Full live conversation bubble stream in the main viewport
+ * 2. VoiceCallDockBar: A compact 42px status bar with live waveform and quick controls
+ * 3. Immersive full-screen modal view
+ *
+ * When a voice call is active, data-voicespirit-active snaps the input bar down to the bottom.
+ * When a voice call ends, turns seamlessly bridge into the conversation.
+ */
+
+import React, { useEffect, useState, useRef } from 'react'
+import type { VoiceSpiritController, VoiceSpiritUiState } from '../voice-controller.ts'
+import type { VoiceSpiritKey } from '../locales.ts'
+import { VoiceDialogueStream } from './VoiceDialogueStream.tsx'
 import { VoiceCallDockBar } from './VoiceCallDockBar.tsx'
+import { VoiceCallImmersiveModal } from './VoiceCallImmersiveModal.tsx'
+import styles from './VoiceCall.module.css'
 
 export interface VoiceCallDockViewProps {
-  sessionId: SessionId
-  t: (k: any) => string
-  getEngine: () => VoiceAudioEngine
-  getState: () => VoiceEngineState
-  getMicLevel: () => number
-  getSpeakerLevel: () => number
-  getCurrentUserText: () => string
-  getIsUserInterim: () => boolean
-  getCurrentAssistantText: () => string
-  getHistoryTurns: () => VoiceTranscriptTurn[]
-  subscribe: (cb: () => void) => () => void
+  controller: VoiceSpiritController
+  t: (key: VoiceSpiritKey) => string
+  inputActions?: {
+    setDraft: (text: string) => void
+    submit: () => void
+  }
 }
 
 export const VoiceCallDockView: React.FC<VoiceCallDockViewProps> = ({
+  controller,
   t,
-  getEngine,
-  getState,
-  getMicLevel,
-  getSpeakerLevel,
-  getCurrentUserText,
-  getIsUserInterim,
-  getCurrentAssistantText,
-  getHistoryTurns,
-  subscribe,
+  inputActions,
 }) => {
-  const [, setTick] = useState(0)
+  const [snapshot, setSnapshot] = useState<VoiceSpiritUiState>(() => controller.getSnapshot())
+  const prevLiveRef = useRef<boolean>(false)
 
   useEffect(() => {
-    return subscribe(() => setTick((v) => v + 1))
-  }, [subscribe])
+    setSnapshot(controller.getSnapshot())
+    return controller.subscribe(() => { setSnapshot(controller.getSnapshot()) })
+  }, [controller])
 
-  const state = getState()
-  if (!state.isConnected && state.phase === 'idle') {
-    return null
-  }
+  const { engine } = snapshot
+  const callLive = engine.phase !== 'idle' || snapshot.launching
+  const hasHistory = snapshot.historyTurns.length > 0
 
-  const engine = getEngine()
+  // Automatically bridge completed voice queries into the native conversation on hangup
+  useEffect(() => {
+    const wasLive = prevLiveRef.current
+    prevLiveRef.current = callLive
+
+    // Transition from live call to ended call
+    if (wasLive && !callLive && snapshot.lastCall && snapshot.lastCall.turns.length > 0) {
+      const userQueries = snapshot.lastCall.turns
+        .map(turn => turn.userText.trim())
+        .filter(text => text.length > 0)
+
+      if (userQueries.length > 0 && inputActions?.setDraft && inputActions?.submit) {
+        const fullPrompt = userQueries.join('\n')
+        inputActions.setDraft(fullPrompt)
+        window.setTimeout(() => {
+          inputActions.submit()
+        }, 60)
+      }
+      controller.dismissLastCall()
+    }
+  }, [callLive, snapshot.lastCall, inputActions, controller])
 
   return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', boxSizing: 'border-box' }}>
-      {/* 1. Organic Voice Orb & Live Dialogue Bubbles */}
-      <VoiceHeroExperience
-        state={state}
-        micLevel={getMicLevel()}
-        speakerLevel={getSpeakerLevel()}
-        turns={getHistoryTurns()}
-        currentUserText={getCurrentUserText()}
-        isUserInterim={getIsUserInterim()}
-        currentAssistantText={getCurrentAssistantText()}
-        t={t}
-      />
+    <div
+      data-voicespirit-active={callLive || hasHistory ? 'true' : undefined}
+      className={styles.dockViewRoot}
+    >
+      {/* 1. Main Viewport Dialogue Bubbles Stream */}
+      {(callLive || hasHistory) && (
+        <VoiceDialogueStream
+          snapshot={snapshot}
+          controller={controller}
+          t={t}
+        />
+      )}
 
-      {/* 2. VoiceSpirit Integrated Top Ribbon */}
-      <VoiceCallDockBar
-        engine={engine}
-        state={state}
-        micLevel={getMicLevel()}
-        speakerLevel={getSpeakerLevel()}
-        currentUserText={getCurrentUserText()}
-        isUserInterim={getIsUserInterim()}
-        currentAssistantText={getCurrentAssistantText()}
-        onEndCall={() => engine.stop()}
-        onToggleMute={() => engine.toggleMute()}
-        onInterrupt={() => engine.interrupt()}
-        t={t}
-      />
+      {/* 2. Compact 42px Active Dock Ribbon */}
+      {callLive && (
+        <VoiceCallDockBar snapshot={snapshot} controller={controller} t={t} />
+      )}
+
+      {/* 3. Immersive full-screen call view */}
+      {snapshot.immersiveOpen && callLive && (
+        <VoiceCallImmersiveModal
+          snapshot={snapshot}
+          controller={controller}
+          t={t}
+        />
+      )}
     </div>
   )
 }

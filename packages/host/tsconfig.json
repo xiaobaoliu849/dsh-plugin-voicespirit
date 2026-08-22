@@ -13,6 +13,15 @@
     },
     {
       "path": "../../runtime-diagnostics/invariants"
+    },
+    {
+      "path": "../../settings/settings"
+    },
+    {
+      "path": "../../util/home-paths"
+    },
+    {
+      "path": "../../host/webserver"
     }
   ]
 }

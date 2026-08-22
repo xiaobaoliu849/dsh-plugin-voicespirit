@@ -10,7 +10,6 @@ export interface VoiceHeroExperienceProps {
   currentUserText: string
   isUserInterim: boolean
   currentAssistantText: string
-  t: (k: any) => string
 }
 
 export const VoiceHeroExperience: React.FC<VoiceHeroExperienceProps> = ({
@@ -40,10 +39,18 @@ export const VoiceHeroExperience: React.FC<VoiceHeroExperienceProps> = ({
               : 'radial-gradient(circle, rgba(16, 185, 129, 0.45) 0%, rgba(6, 182, 212, 0.2) 50%, transparent 75%)',
           }}
         />
+        {/* Scale rides a wrapper layer: the orb's own transform is owned by
+            the rotate animation, which would override an inline scale. */}
         <div
-          className={`${styles.voiceOrb} ${!isSpeaking ? styles.voiceOrbListening : ''}`}
-          style={{ transform: `scale(${orbScale})` }}
-        />
+          style={{
+            transform: `scale(${orbScale})`,
+            transition: 'transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            display: 'flex',
+            zIndex: 1,
+          }}
+        >
+          <div className={`${styles.voiceOrb} ${!isSpeaking ? styles.voiceOrbListening : ''}`} />
+        </div>
         <div className={styles.orbRing} />
       </div>
 
