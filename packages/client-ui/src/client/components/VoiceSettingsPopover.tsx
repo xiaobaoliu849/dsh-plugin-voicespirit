@@ -182,40 +182,37 @@ export const VoiceSettingsPopover: React.FC<VoiceSettingsPopoverProps> = ({
                 )}
               </div>
 
-              {/* Provider & Model in a compact 2-column grid */}
-              <div className={styles.popoverGrid2}>
-                {/* Provider */}
-                <label className={styles.popoverField}>
-                  <span className={styles.popoverLabel}>{t('provider')}</span>
-                  <select
-                    className={styles.popoverSelect}
-                    value={provider}
-                    disabled={saving}
-                    onChange={(e) => { void applySelection({ provider: e.target.value }) }}
-                  >
-                    {PROVIDER_CATALOG.map((catalogEntry) => (
-                      <option key={catalogEntry.id} value={catalogEntry.id}>
-                        {t(catalogEntry.labelKey as VoiceSpiritKey)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              {/* Provider */}
+              <label className={styles.popoverField}>
+                <span className={styles.popoverLabel}>{t('provider')}</span>
+                <select
+                  className={styles.popoverSelect}
+                  value={provider}
+                  disabled={saving}
+                  onChange={(e) => { void applySelection({ provider: e.target.value }) }}
+                >
+                  {PROVIDER_CATALOG.map((catalogEntry) => (
+                    <option key={catalogEntry.id} value={catalogEntry.id}>
+                      {t(catalogEntry.labelKey as VoiceSpiritKey)}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-                {/* Model */}
-                <label className={styles.popoverField}>
-                  <span className={styles.popoverLabel}>{t('model')}</span>
-                  <select
-                    className={styles.popoverSelect}
-                    value={snapshot.engine.model || entry.models[0] || ''}
-                    disabled={saving}
-                    onChange={(e) => { void applySelection({ model: e.target.value }) }}
-                  >
-                    {entry.models.map((model) => (
-                      <option key={model} value={model}>{model}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+              {/* Model */}
+              <label className={styles.popoverField}>
+                <span className={styles.popoverLabel}>{t('model')}</span>
+                <select
+                  className={styles.popoverSelect}
+                  value={snapshot.engine.model || entry.models[0] || ''}
+                  disabled={saving}
+                  onChange={(e) => { void applySelection({ model: e.target.value }) }}
+                >
+                  {entry.models.map((model) => (
+                    <option key={model} value={model}>{model}</option>
+                  ))}
+                </select>
+              </label>
 
               {/* Rich Voice Timbre Selector */}
               <div className={styles.popoverField}>

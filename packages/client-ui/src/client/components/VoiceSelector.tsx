@@ -105,14 +105,16 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
+          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
           gap: '6px',
           height: '144px',
           minHeight: '144px',
           maxHeight: '144px',
           overflowY: 'auto',
+          overflowX: 'hidden',
           paddingRight: '2px',
           boxSizing: 'border-box',
+          width: '100%',
         }}
       >
         {filteredVoices.map((voice) => {

@@ -647,9 +647,9 @@
   position: absolute;
   bottom: calc(100% + 8px);
   right: 0;
-  width: 350px;
+  width: 360px;
   max-width: calc(100vw - 20px);
-  max-height: min(530px, calc(100vh - 100px));
+  max-height: min(540px, calc(100vh - 100px));
   z-index: 9999;
   display: flex;
   flex-direction: column;
@@ -683,6 +683,8 @@
   border-bottom: 1px solid var(--dsw-alias-border-l2-darkmode-thin, rgba(255, 255, 255, 0.08));
   flex-shrink: 0;
   background: var(--dsw-specific-selector, rgba(255, 255, 255, 0.02));
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .popoverHeaderLeft {
@@ -722,11 +724,14 @@
 .popoverScrollBody {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   overscroll-behavior: contain;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .popoverScrollBody::-webkit-scrollbar {
@@ -738,12 +743,6 @@
   border-radius: 4px;
 }
 
-.popoverGrid2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
 .popoverBackendRow {
   display: flex;
   align-items: center;
@@ -752,6 +751,8 @@
   border: 1px solid var(--dsw-alias-border-l2-darkmode-thin, rgba(255, 255, 255, 0.08));
   border-radius: 8px;
   background: var(--dsw-specific-selector, rgba(255, 255, 255, 0.03));
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .backendDot {
@@ -811,6 +812,9 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .popoverLabel {
@@ -834,11 +838,18 @@
   border: 1px solid var(--dsw-alias-border-l2-darkmode-thin, rgba(255, 255, 255, 0.12));
   border-radius: 8px;
   color: var(--dsw-alias-label-primary, #e5e7eb);
-  padding: 5px 8px;
+  padding: 6px 10px;
   font-size: 12px;
   outline: none;
   cursor: pointer;
   transition: border-color 0.15s ease;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 :global([data-theme="light"]) .popoverSelect {
@@ -865,6 +876,9 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .popoverCredHeader {
