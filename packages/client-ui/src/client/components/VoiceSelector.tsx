@@ -53,11 +53,11 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
   const isCustomSelected = !currentVoiceObj && selectedVoice !== ''
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
       {/* 1. Header with search & filter pills */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
         {/* Gender Filter Pills */}
-        <div style={{ display: 'flex', gap: '4px', background: 'var(--dsw-specific-selector, rgba(255,255,255,0.06))', padding: '2px', borderRadius: '6px' }}>
+        <div style={{ display: 'flex', gap: '2px', background: 'var(--dsw-specific-selector, rgba(255,255,255,0.06))', padding: '2px', borderRadius: '7px' }}>
           {(['all', 'female', 'male'] as const).map((g) => (
             <button
               key={g}
@@ -66,9 +66,9 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
               onClick={() => { setFilterGender(g) }}
               style={{
                 fontSize: '11px',
-                padding: '2px 8px',
+                padding: '2px 7px',
                 border: 'none',
-                borderRadius: '4px',
+                borderRadius: '5px',
                 background: filterGender === g ? 'var(--dsw-alias-state-business-primary, #3b82f6)' : 'transparent',
                 color: filterGender === g ? '#fff' : 'var(--dsw-alias-label-secondary, #9ca3af)',
                 cursor: 'pointer',
@@ -84,7 +84,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
         {/* Search input */}
         <input
           type="text"
-          placeholder="搜索音色/风格..."
+          placeholder="搜索音色/风格…"
           value={searchQuery}
           disabled={disabled}
           onChange={e => { setSearchQuery(e.target.value) }}
@@ -92,28 +92,36 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
             fontSize: '11px',
             padding: '3px 8px',
             borderRadius: '6px',
-            border: '1px solid var(--dsw-alias-border-l2-darkmode-thin, rgba(255,255,255,0.15))',
-            background: 'var(--dsw-specific-selector, rgba(255,255,255,0.06))',
+            border: '1px solid var(--dsw-alias-border-l2-darkmode-thin, rgba(255,255,255,0.12))',
+            background: 'var(--dsw-specific-selector, rgba(255,255,255,0.04))',
             color: 'inherit',
             outline: 'none',
-            maxWidth: '120px',
+            maxWidth: '110px',
           }}
         />
       </div>
 
-      {/* 2. Voice Cards Grid */}
+      {/* 2. Voice Cards Grid - Fixed height to avoid popover height jumps */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+          gridTemplateColumns: 'repeat(2, 1fr)',
           gap: '6px',
-          maxHeight: '180px',
+          height: '144px',
+          minHeight: '144px',
+          maxHeight: '144px',
           overflowY: 'auto',
           paddingRight: '2px',
+          boxSizing: 'border-box',
         }}
       >
         {filteredVoices.map((voice) => {
           const isSelected = voice.id === selectedVoice
+          const isFemale = voice.gender === 'female'
+          const isMale = voice.gender === 'male'
+          const genderColor = isFemale ? '#ec4899' : isMale ? '#38bdf8' : '#9ca3af'
+          const genderBg = isFemale ? 'rgba(236, 72, 153, 0.12)' : isMale ? 'rgba(56, 189, 248, 0.12)' : 'rgba(156, 163, 175, 0.12)'
+
           return (
             <button
               key={voice.id}
@@ -130,32 +138,59 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                 borderRadius: '8px',
                 border: isSelected
                   ? '1.5px solid var(--dsw-alias-state-business-primary, #3b82f6)'
-                  : '1px solid var(--dsw-alias-border-l2-darkmode-thin, rgba(255,255,255,0.1))',
+                  : '1px solid var(--dsw-alias-border-l2-darkmode-thin, rgba(255,255,255,0.08))',
                 background: isSelected
                   ? 'rgba(59, 130, 246, 0.12)'
-                  : 'var(--dsw-specific-selector, rgba(255,255,255,0.04))',
+                  : 'var(--dsw-specific-selector, rgba(255,255,255,0.03))',
                 cursor: disabled ? 'not-allowed' : 'pointer',
                 transition: 'all 0.15s ease',
                 position: 'relative',
+                boxShadow: isSelected ? '0 0 0 1px var(--dsw-alias-state-business-primary, #3b82f6)' : 'none',
               }}
             >
-              {/* Voice Name & Gender Icon */}
+              {/* Header: Name + Gender badge + Selection Checkmark */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '4px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: isSelected ? 'var(--dsw-alias-state-business-primary, #3b82f6)' : 'inherit' }}>
-                  {voice.displayName}
-                </span>
-                <span style={{ fontSize: '10px', opacity: 0.6 }}>
-                  {voice.gender === 'female' ? '♀' : voice.gender === 'male' ? '♂' : '⚲'}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      padding: '1px 3px',
+                      borderRadius: '3px',
+                      background: genderBg,
+                      color: genderColor,
+                      fontWeight: 600,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {isFemale ? '♀' : isMale ? '♂' : '⚲'}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: isSelected ? 'var(--dsw-alias-state-business-primary, #3b82f6)' : 'inherit',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {voice.displayName}
+                  </span>
+                </div>
+                {isSelected && (
+                  <span style={{ fontSize: '11px', color: 'var(--dsw-alias-state-business-primary, #3b82f6)', fontWeight: 700 }}>
+                    ✓
+                  </span>
+                )}
               </div>
 
-              {/* Chinese readable name & tags */}
+              {/* Chinese readable name & vibe */}
               <div style={{ fontSize: '11px', opacity: 0.8, marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>
                 {voice.displayNameZh.replace(/\s*\([^)]*\)/, '')}
               </div>
 
               {/* Tag badges */}
-              <div style={{ display: 'flex', gap: '3px', marginTop: '4px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '3px', marginTop: '3px', flexWrap: 'wrap' }}>
                 {voice.tags.slice(0, 2).map(tag => (
                   <span
                     key={tag}
@@ -163,8 +198,8 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                       fontSize: '9px',
                       padding: '1px 4px',
                       borderRadius: '3px',
-                      background: 'var(--dsw-specific-selector, rgba(255,255,255,0.08))',
-                      opacity: 0.85,
+                      background: 'var(--dsw-specific-selector, rgba(255,255,255,0.06))',
+                      opacity: 0.8,
                     }}
                   >
                     {tag}
@@ -176,14 +211,14 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
         })}
 
         {filteredVoices.length === 0 && (
-          <div style={{ gridColumn: '1 / -1', fontSize: '11px', textAlign: 'center', opacity: 0.6, padding: '12px 0' }}>
+          <div style={{ gridColumn: '1 / -1', fontSize: '11px', textAlign: 'center', opacity: 0.6, padding: '16px 0' }}>
             未找到匹配音色
           </div>
         )}
       </div>
 
       {/* 3. Custom / Advanced Voice ID Toggle */}
-      <div style={{ marginTop: '2px' }}>
+      <div style={{ marginTop: '1px' }}>
         <button
           type="button"
           onClick={() => { setShowCustom(!showCustom) }}
@@ -198,7 +233,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
             textDecoration: 'underline',
           }}
         >
-          {showCustom ? '收起自定义 ID' : isCustomSelected ? `自定义音色: ${selectedVoice}` : '+ 输入自定义音色 ID'}
+          {showCustom ? '收起自定义 ID' : isCustomSelected ? `自定义音色: ${selectedVoice}` : '+ 自定义音色 ID'}
         </button>
 
         {showCustom && (

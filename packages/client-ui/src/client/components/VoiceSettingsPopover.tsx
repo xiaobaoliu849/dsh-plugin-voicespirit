@@ -37,11 +37,16 @@ export const VoiceSettingsPopover: React.FC<VoiceSettingsPopoverProps> = ({
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [savingKeys, setSavingKeys] = useState(false)
   const [keysResult, setKeysResult] = useState<'saved' | 'failed' | undefined>(undefined)
+  const [showCredentials, setShowCredentials] = useState(false)
 
   const provider = snapshot.engine.provider || 'DashScope'
   const entry = providerEntry(provider)
   const backendPhase = snapshot.backend.backend?.phase ?? 'stopped'
   const backendHealthy = snapshot.backend.backend?.healthy ?? false
+
+  const hasMissingSecret = entry.credentials.some(
+    spec => spec.secret && readBackendPath(document, spec.path) === ''
+  )
 
   const toggleOpen = (): void => {
     const next = !isOpen
@@ -49,7 +54,15 @@ export const VoiceSettingsPopover: React.FC<VoiceSettingsPopoverProps> = ({
     if (next) {
       // Fresh read each open so ✓ markers track what the backend holds now.
       setKeysResult(undefined)
-      void controller.getBackendClient().fetchSettings().then((loaded) => { setDocument(loaded) })
+      void controller.getBackendClient().fetchSettings().then((loaded) => {
+        setDocument(loaded)
+        const missing = entry.credentials.some(
+          spec => spec.secret && readBackendPath(loaded, spec.path) === ''
+        )
+        if (missing) {
+          setShowCredentials(true)
+        }
+      })
     }
   }
 
@@ -84,7 +97,10 @@ export const VoiceSettingsPopover: React.FC<VoiceSettingsPopoverProps> = ({
       if (error === undefined) {
         setDrafts({})
         setKeysResult('saved')
-        void controller.getBackendClient().fetchSettings().then((loaded) => { setDocument(loaded) })
+        void controller.getBackendClient().fetchSettings().then((loaded) => {
+          setDocument(loaded)
+          setShowCredentials(false)
+        })
       } else {
         setKeysResult('failed')
       }
@@ -115,8 +131,11 @@ export const VoiceSettingsPopover: React.FC<VoiceSettingsPopoverProps> = ({
         <>
           <div className={styles.popoverScrim} onClick={toggleOpen} />
           <div className={styles.popoverPanel}>
+            {/* 1. Header with title & close */}
             <div className={styles.popoverHeader}>
-              <span className={styles.popoverTitle}>{t('settingsTitle')}</span>
+              <div className={styles.popoverHeaderLeft}>
+                <span className={styles.popoverTitle}>{t('settingsTitle')}</span>
+              </div>
               <button
                 type="button"
                 className={styles.popoverClose}
@@ -127,153 +146,175 @@ export const VoiceSettingsPopover: React.FC<VoiceSettingsPopoverProps> = ({
               </button>
             </div>
 
-            {/* Backend phase row */}
-            <div className={styles.popoverBackendRow}>
-              <span
-                className={`${styles.backendDot} ${
-                  backendPhase === 'running' && backendHealthy
-                    ? styles.backendDotRunning
-                    : backendPhase === 'starting' || snapshot.launching
-                    ? styles.backendDotStarting
+            {/* 2. Scrollable Body - Never pushes popup outside screen */}
+            <div className={styles.popoverScrollBody}>
+              {/* Backend phase row */}
+              <div className={styles.popoverBackendRow}>
+                <span
+                  className={`${styles.backendDot} ${
+                    backendPhase === 'running' && backendHealthy
+                      ? styles.backendDotRunning
+                      : backendPhase === 'starting' || snapshot.launching
+                      ? styles.backendDotStarting
+                      : backendPhase === 'error'
+                      ? styles.backendDotError
+                      : styles.backendDotStopped
+                  }`}
+                />
+                <span className={styles.popoverBackendLabel}>
+                  {snapshot.launching || backendPhase === 'starting'
+                    ? t('backendStarting')
+                    : backendPhase === 'running'
+                    ? t('backendRunning')
                     : backendPhase === 'error'
-                    ? styles.backendDotError
-                    : styles.backendDotStopped
-                }`}
-              />
-              <span className={styles.popoverBackendLabel}>
-                {snapshot.launching || backendPhase === 'starting'
-                  ? t('backendStarting')
-                  : backendPhase === 'running'
-                  ? t('backendRunning')
-                  : backendPhase === 'error'
-                  ? t('backendError')
-                  : t('backendStopped')}
-              </span>
-              {(backendPhase === 'stopped' || backendPhase === 'error') && (
-                <button
-                  type="button"
-                  className={styles.popoverMiniBtn}
-                  disabled={snapshot.backend.commanding}
-                  onClick={() => { void controller.getBackendClient().start() }}
-                >
-                  {t('backendStart')}
-                </button>
-              )}
-            </div>
-
-            {/* Missing Credentials Warning Banner */}
-            {entry.credentials.some(spec => spec.secret && readBackendPath(document, spec.path) === '') && (
-              <div style={{
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                borderRadius: '6px',
-                padding: '6px 8px',
-                fontSize: '11px',
-                color: '#ef4444',
-                lineHeight: '1.4',
-              }}>
-                ⚠️ 当前未配置 {provider} API Key，通话将无法正常回复，请在下方填写并保存。
-              </div>
-            )}
-
-            {/* Provider */}
-            <label className={styles.popoverField}>
-              <span className={styles.popoverLabel}>{t('provider')}</span>
-              <select
-                className={styles.popoverSelect}
-                value={provider}
-                disabled={saving}
-                onChange={(e) => { void applySelection({ provider: e.target.value }) }}
-              >
-                {PROVIDER_CATALOG.map((catalogEntry) => (
-                  <option key={catalogEntry.id} value={catalogEntry.id}>
-                    {t(catalogEntry.labelKey as VoiceSpiritKey)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {/* Model */}
-            <label className={styles.popoverField}>
-              <span className={styles.popoverLabel}>{t('model')}</span>
-              <select
-                className={styles.popoverSelect}
-                value={snapshot.engine.model || entry.models[0] || ''}
-                disabled={saving}
-                onChange={(e) => { void applySelection({ model: e.target.value }) }}
-              >
-                {entry.models.map((model) => (
-                  <option key={model} value={model}>{model}</option>
-                ))}
-              </select>
-            </label>
-
-            {/* Rich Voice Timbre Selector */}
-            <div className={styles.popoverField}>
-              <span className={styles.popoverLabel}>{t('voice')}</span>
-              <VoiceSelector
-                provider={provider}
-                selectedVoice={snapshot.engine.voice || entry.voices[0] || ''}
-                disabled={saving}
-                onSelectVoice={(voiceId) => { void applySelection({ voice: voiceId }) }}
-                t={t as (k: string) => string}
-              />
-            </div>
-
-            {/* Credentials for the selected provider, editable inline */}
-            {entry.credentials.length > 0 && (
-              <>
-                <div className={styles.popoverSectionLabel}>{t('sectionCredentials')}</div>
-                {entry.credentials.map((spec) => {
-                  const configured = readBackendPath(document, spec.path) !== ''
-                  return (
-                    <label key={spec.path} className={styles.popoverField}>
-                      <span className={styles.popoverLabel}>
-                        {t(spec.labelKey as VoiceSpiritKey)}{configured ? ' ✓' : ''}
-                      </span>
-                      <input
-                        type={spec.secret ? 'password' : 'text'}
-                        className={styles.popoverInput}
-                        value={drafts[spec.path] ?? ''}
-                        placeholder={configured ? '••••••••' : t(spec.placeholderKey as VoiceSpiritKey)}
-                        autoComplete="off"
-                        spellCheck={false}
-                        onChange={(e) => {
-                          const text = e.target.value
-                          setDrafts((prev) => ({ ...prev, [spec.path]: text }))
-                          setKeysResult(undefined)
-                        }}
-                      />
-                    </label>
-                  )
-                })}
-                <div className={styles.popoverKeyActions}>
+                    ? t('backendError')
+                    : t('backendStopped')}
+                </span>
+                {(backendPhase === 'stopped' || backendPhase === 'error') && (
                   <button
                     type="button"
                     className={styles.popoverMiniBtn}
-                    disabled={savingKeys}
-                    onClick={() => { void saveKeys() }}
+                    disabled={snapshot.backend.commanding}
+                    onClick={() => { void controller.getBackendClient().start() }}
                   >
-                    {savingKeys ? t('saving') : t('saveKeys')}
+                    {t('backendStart')}
                   </button>
-                  <span
-                    className={`${styles.popoverKeyResult} ${
-                      keysResult === 'failed' ? styles.popoverKeyResultFailed : ''
-                    }`}
-                  >
-                    {keysResult === 'saved' ? t('keysSaved') : keysResult === 'failed' ? t('saveFailed') : ''}
-                  </span>
-                </div>
-              </>
-            )}
+                )}
+              </div>
 
-            <div className={styles.popoverHint}>{t(entry.hintKey as VoiceSpiritKey)}</div>
-            {/* The realtime session reads provider/model/voice only at dial
-                time — say so instead of letting a mid-call switch look live. */}
-            {snapshot.engine.phase !== 'idle' && (
-              <div className={styles.popoverHintDim}>{t('applyNextCall')}</div>
-            )}
-            <div className={styles.popoverHintDim}>{t('moreSettingsHint')}</div>
+              {/* Provider & Model in a compact 2-column grid */}
+              <div className={styles.popoverGrid2}>
+                {/* Provider */}
+                <label className={styles.popoverField}>
+                  <span className={styles.popoverLabel}>{t('provider')}</span>
+                  <select
+                    className={styles.popoverSelect}
+                    value={provider}
+                    disabled={saving}
+                    onChange={(e) => { void applySelection({ provider: e.target.value }) }}
+                  >
+                    {PROVIDER_CATALOG.map((catalogEntry) => (
+                      <option key={catalogEntry.id} value={catalogEntry.id}>
+                        {t(catalogEntry.labelKey as VoiceSpiritKey)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {/* Model */}
+                <label className={styles.popoverField}>
+                  <span className={styles.popoverLabel}>{t('model')}</span>
+                  <select
+                    className={styles.popoverSelect}
+                    value={snapshot.engine.model || entry.models[0] || ''}
+                    disabled={saving}
+                    onChange={(e) => { void applySelection({ model: e.target.value }) }}
+                  >
+                    {entry.models.map((model) => (
+                      <option key={model} value={model}>{model}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {/* Rich Voice Timbre Selector */}
+              <div className={styles.popoverField}>
+                <span className={styles.popoverLabel}>{t('voice')}</span>
+                <VoiceSelector
+                  provider={provider}
+                  selectedVoice={snapshot.engine.voice || entry.voices[0] || ''}
+                  disabled={saving}
+                  onSelectVoice={(voiceId) => { void applySelection({ voice: voiceId }) }}
+                  t={t as (k: string) => string}
+                />
+              </div>
+
+              {/* Smart Credentials Accordion / Card */}
+              {entry.credentials.length > 0 && (
+                <div className={styles.popoverCredCard}>
+                  <div className={styles.popoverCredHeader}>
+                    <div className={styles.popoverCredStatus}>
+                      <span style={{ color: hasMissingSecret ? '#ef4444' : '#10b981', fontWeight: 700 }}>
+                        {hasMissingSecret ? '⚠️' : '✓'}
+                      </span>
+                      <span>
+                        {t('sectionCredentials')}: {hasMissingSecret ? '待配置' : '已就绪'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.popoverCredToggleBtn}
+                      onClick={() => { setShowCredentials(!showCredentials) }}
+                    >
+                      {showCredentials ? '收起' : hasMissingSecret ? '填写密钥' : '修改密钥'}
+                    </button>
+                  </div>
+
+                  {showCredentials && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                      {hasMissingSecret && (
+                        <div style={{
+                          background: 'rgba(239, 68, 68, 0.1)',
+                          border: '1px solid rgba(239, 68, 68, 0.25)',
+                          borderRadius: '6px',
+                          padding: '4px 8px',
+                          fontSize: '11px',
+                          color: '#ef4444',
+                          lineHeight: '1.4',
+                        }}>
+                          当前未配置 {provider} 密钥，通话将无法正常回复。
+                        </div>
+                      )}
+                      {entry.credentials.map((spec) => {
+                        const configured = readBackendPath(document, spec.path) !== ''
+                        return (
+                          <label key={spec.path} className={styles.popoverField}>
+                            <span className={styles.popoverLabel}>
+                              {t(spec.labelKey as VoiceSpiritKey)}{configured ? ' ✓' : ''}
+                            </span>
+                            <input
+                              type={spec.secret ? 'password' : 'text'}
+                              className={styles.popoverInput}
+                              value={drafts[spec.path] ?? ''}
+                              placeholder={configured ? '••••••••' : t(spec.placeholderKey as VoiceSpiritKey)}
+                              autoComplete="off"
+                              spellCheck={false}
+                              onChange={(e) => {
+                                const text = e.target.value
+                                setDrafts((prev) => ({ ...prev, [spec.path]: text }))
+                                setKeysResult(undefined)
+                              }}
+                            />
+                          </label>
+                        )
+                      })}
+                      <div className={styles.popoverKeyActions}>
+                        <button
+                          type="button"
+                          className={styles.popoverMiniBtn}
+                          disabled={savingKeys}
+                          onClick={() => { void saveKeys() }}
+                        >
+                          {savingKeys ? t('saving') : t('saveKeys')}
+                        </button>
+                        <span
+                          className={`${styles.popoverKeyResult} ${
+                            keysResult === 'failed' ? styles.popoverKeyResultFailed : ''
+                          }`}
+                        >
+                          {keysResult === 'saved' ? t('keysSaved') : keysResult === 'failed' ? t('saveFailed') : ''}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 3. Sticky Footer */}
+            <div className={styles.popoverFooter}>
+              <span>{snapshot.engine.phase !== 'idle' ? t('applyNextCall') : t('moreSettingsHint')}</span>
+            </div>
           </div>
         </>
       )}
