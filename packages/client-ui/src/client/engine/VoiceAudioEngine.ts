@@ -131,16 +131,97 @@ function extractBands(data: Uint8Array, edges: number[]): number[] {
   return bands
 }
 
+export function containsLatinText(value: string): boolean {
+  return /[A-Za-z]/.test(value)
+}
+
+export function isCJKPredominant(value: string): boolean {
+  if (!value) return false
+  let cjk = 0
+  for (const c of value) {
+    const cp = c.codePointAt(0) ?? 0
+    if (
+      (cp >= 0x4e00 && cp <= 0x9fff) || // CJK Unified Ideographs
+      (cp >= 0x3400 && cp <= 0x4dbf) || // CJK Extension A
+      (cp >= 0xf900 && cp <= 0xfaff) || // CJK Compatibility Ideographs
+      (cp >= 0x3040 && cp <= 0x309f) || // Hiragana
+      (cp >= 0x30a0 && cp <= 0x30ff) || // Katakana
+      (cp >= 0xac00 && cp <= 0xd7af) || // Hangul Syllables
+      (cp >= 0x1100 && cp <= 0x11ff)    // Hangul Jamo
+    ) {
+      cjk += 1
+    }
+  }
+  return cjk > value.length * 0.3
+}
+
+export function appendStreamingText(previous: string, incoming: string): string {
+  const before = previous.trim()
+  const next = incoming.trim()
+  if (!before) return next
+  if (!next) return before
+
+  // Only insert a word-boundary space when the surrounding text is primarily Latin-script
+  if (
+    (containsLatinText(before) || containsLatinText(next)) &&
+    !isCJKPredominant(before) &&
+    !isCJKPredominant(next)
+  ) {
+    return `${before} ${next}`.replace(/\s+([,.!?;:])/g, '$1')
+  }
+  return `${before}${next}`
+}
+
+export function mergeAssistantText(previous: string, incoming: string): string {
+  const next = incoming.trim()
+  if (!next) return previous
+  if (!previous) return next
+  const prevTrimmed = previous.trim()
+
+  // If incoming is an exact cumulative replacement (starts with previous), adopt it
+  if (next.startsWith(prevTrimmed)) {
+    return next
+  }
+
+  // Exact duplicate of the last chunk
+  if (prevTrimmed === next) {
+    return previous
+  }
+
+  // True tail duplicate: previous already ends with the exact incoming text
+  if (prevTrimmed.endsWith(next)) {
+    return previous
+  }
+
+  // Find longest suffix-prefix overlap to merge without gaps or duplication
+  let maxOverlap = 0
+  const maxSearchLen = Math.min(prevTrimmed.length, next.length)
+  for (let len = maxSearchLen; len >= 1; len--) {
+    if (prevTrimmed.endsWith(next.slice(0, len))) {
+      maxOverlap = len
+      break
+    }
+  }
+
+  if (maxOverlap > 0) {
+    const novel = next.slice(maxOverlap)
+    return appendStreamingText(previous, novel)
+  }
+
+  return appendStreamingText(previous, next)
+}
+
 export class VoiceAudioEngine {
   private options: VoiceCallOptions
   private audioCtx: AudioContext | null = null
-  private mediaStream: MediaStream | null = null
+  private micStream: MediaStream | null = null
   private micSource: MediaStreamAudioSourceNode | null = null
-  private micProcessor: ScriptProcessorNode | null = null
-  private micAnalyser: AnalyserNode | null = null
-  private speakerAnalyser: AnalyserNode | null = null
   private micGain: GainNode | null = null
+  private micAnalyser: AnalyserNode | null = null
+  private micProcessor: ScriptProcessorNode | null = null
   private micSink: GainNode | null = null
+  private mediaStream: MediaStream | null = null
+  private speakerAnalyser: AnalyserNode | null = null
 
   private ws: WebSocket | null = null
   private isMuted: boolean = false
@@ -153,6 +234,8 @@ export class VoiceAudioEngine {
   private currentUserText: string = ''
   private currentAssistantText: string = ''
   private isUserInterim: boolean = false
+  private currentTurnId: string = ''
+  private currentTurnInterrupted: boolean = false
 
   // Last `error` event text from the backend; takes precedence over the
   // generic close-code diagnosis so config problems surface verbatim.
@@ -307,6 +390,7 @@ export class VoiceAudioEngine {
     }
     this.stopLevelMonitor()
     this.clearAudioPlayback()
+    this.commitTurnIfPending()
 
     if (this.micProcessor) {
       this.micProcessor.disconnect()
@@ -460,6 +544,28 @@ export class VoiceAudioEngine {
     this.micSink.connect(this.audioCtx.destination)
   }
 
+  private commitTurnIfPending(newTurnId?: string, isInterrupted?: boolean): void {
+    const user = this.currentUserText.trim()
+    const assistant = this.currentAssistantText.trim()
+    if (user || assistant) {
+      const turn: VoiceTranscriptTurn = {
+        id: this.currentTurnId || `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        userText: user,
+        assistantText: assistant,
+        timestamp: Date.now(),
+        interrupted: isInterrupted ?? this.currentTurnInterrupted,
+      }
+      this.options.onTurnComplete?.(turn)
+    }
+    this.currentUserText = ''
+    this.currentAssistantText = ''
+    this.isUserInterim = false
+    this.currentTurnInterrupted = false
+    if (newTurnId !== undefined) {
+      this.currentTurnId = newTurnId
+    }
+  }
+
   private handleWsMessage(data: string | ArrayBuffer): void {
     this.receivedAnyMessage = true
     if (this.aliveTimer !== null) {
@@ -479,15 +585,36 @@ export class VoiceAudioEngine {
       if (!msg) return
 
       switch (msg.type) {
+        case 'speech_started':
+          if (this.phase === 'speaking') {
+            this.interrupt()
+          }
+          break
+
         case 'user_transcript':
         case 'transcript':
           if (msg.text !== undefined) {
-            this.currentUserText = msg.text
-            this.isUserInterim = msg.interim ?? false
+            const incoming = msg.text
+            const isInterim = msg.interim ?? false
+
+            // If assistant had already replied in the current turn and new user speech arrived,
+            // or if turn_id changed, commit the previous completed turn
+            if (!isInterim && this.currentAssistantText.trim().length > 0) {
+              this.commitTurnIfPending(msg.turn_id)
+            } else if (msg.turn_id && this.currentTurnId && msg.turn_id !== this.currentTurnId) {
+              this.commitTurnIfPending(msg.turn_id)
+            }
+
+            if (msg.turn_id) {
+              this.currentTurnId = msg.turn_id
+            }
+
+            this.currentUserText = incoming
+            this.isUserInterim = isInterim
             this.notifyTranscript()
 
             // If user started speaking while AI was playing, trigger interruption
-            if (this.phase === 'speaking' && msg.text.trim().length > 0) {
+            if (this.phase === 'speaking' && incoming.trim().length > 0) {
               this.interrupt()
             }
           }
@@ -497,13 +624,19 @@ export class VoiceAudioEngine {
         case 'reply':
         case 'delta':
           if (msg.text) {
-            this.currentAssistantText += msg.text
+            if (msg.turn_id && this.currentTurnId && msg.turn_id !== this.currentTurnId) {
+              this.commitTurnIfPending(msg.turn_id)
+            }
+            if (msg.turn_id) {
+              this.currentTurnId = msg.turn_id
+            }
+            this.currentAssistantText = mergeAssistantText(this.currentAssistantText, msg.text)
             this.notifyTranscript()
           }
           break
 
         case 'assistant_audio':
-        case 'audio':
+        case 'audio': {
           const base64Data = msg.audio || msg.data
           if (base64Data) {
             const audioBuffer = this.base64ToArrayBuffer(base64Data)
@@ -512,10 +645,12 @@ export class VoiceAudioEngine {
             this.playAudioChunk(audioBuffer, sampleRate)
           }
           break
+        }
 
         case 'interruption':
         case 'interrupted':
         case 'interruption_pending':
+          this.currentTurnInterrupted = true
           this.setPhase('interrupted')
           this.clearAudioPlayback()
           setTimeout(() => {
@@ -527,19 +662,7 @@ export class VoiceAudioEngine {
 
         case 'turn_complete':
         case 'turn_end':
-          if (this.currentUserText || this.currentAssistantText) {
-            const turn: VoiceTranscriptTurn = {
-              id: msg.turn_id || `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-              userText: this.currentUserText,
-              assistantText: this.currentAssistantText,
-              timestamp: Date.now(),
-              interrupted: msg.interrupted ?? false,
-            }
-            this.options.onTurnComplete?.(turn)
-          }
-          this.currentUserText = ''
-          this.currentAssistantText = ''
-          this.isUserInterim = false
+          this.commitTurnIfPending(undefined, msg.interrupted)
           this.setPhase('listening')
           break
 
