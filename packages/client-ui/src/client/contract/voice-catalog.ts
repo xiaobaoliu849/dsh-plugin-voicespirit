@@ -256,15 +256,84 @@ export const DOUBAO_VOICES: readonly VoiceCatalogEntry[] = [
   },
 ]
 
+export const CARTESIA_VOICES: readonly VoiceCatalogEntry[] = [
+  {
+    id: 'f786b574-daa5-4673-aa0c-cbe3e8534c02',
+    displayName: 'Sonic (Default)',
+    displayNameZh: 'Sonic (默认自然音色)',
+    gender: 'neutral',
+    language: 'en/multi',
+    tags: ['超低延迟', '自然', '流畅'],
+    description: 'Ultra-low latency realtime voice.',
+    descriptionZh: '超低延迟自然发音，适合高速实时对话。',
+  },
+]
+
+export const PERSONAPLEX_VOICES: readonly VoiceCatalogEntry[] = [
+  {
+    id: 'NATF2.pt',
+    displayName: 'NATF2',
+    displayNameZh: 'NATF2 (本地自然女声)',
+    gender: 'female',
+    language: 'multi',
+    tags: ['本地', '离线', '端侧'],
+    description: 'Local on-device female voice model.',
+    descriptionZh: '端侧本地运行的自然女声音色。',
+  },
+  {
+    id: 'NATF0.pt',
+    displayName: 'NATF0',
+    displayNameZh: 'NATF0 (清晰女声)',
+    gender: 'female',
+    language: 'multi',
+    tags: ['本地', '清脆'],
+    description: 'Local on-device female voice model.',
+    descriptionZh: '端侧本地清晰女声音色。',
+  },
+  {
+    id: 'VARM4.pt',
+    displayName: 'VARM4',
+    displayNameZh: 'VARM4 (自然男声)',
+    gender: 'male',
+    language: 'multi',
+    tags: ['本地', '男声'],
+    description: 'Local on-device male voice model.',
+    descriptionZh: '端侧本地自然男声音色。',
+  },
+]
+
+export const GLM4VOICE_VOICES: readonly VoiceCatalogEntry[] = [
+  {
+    id: 'default',
+    displayName: 'Default',
+    displayNameZh: '智谱默认 (全双工端到端)',
+    gender: 'female',
+    language: 'zh/en',
+    tags: ['端到端', '情感丰富', '全双工'],
+    description: 'GLM-4-Voice native end-to-end voice.',
+    descriptionZh: 'GLM-4-Voice 原生端到端情感拟真音色。',
+  },
+]
+
 export const PROVIDER_VOICE_MAP: Record<string, readonly VoiceCatalogEntry[]> = {
   DashScope: DASHSCOPE_VOICES,
   Google: GOOGLE_VOICES,
   OpenAI: OPENAI_VOICES,
   Doubao: DOUBAO_VOICES,
+  Cartesia: CARTESIA_VOICES,
+  PersonaPlex: PERSONAPLEX_VOICES,
+  GLM4Voice: GLM4VOICE_VOICES,
 }
 
 /** Get rich voice catalog for a provider with safe fallback */
 export function getProviderVoices(provider: string | undefined): readonly VoiceCatalogEntry[] {
-  if (!provider) return DASHSCOPE_VOICES
-  return PROVIDER_VOICE_MAP[provider] ?? []
+  if (!provider || provider.trim() === '') return DASHSCOPE_VOICES
+  const normalized = provider.toLowerCase().replace(/[-_]/g, '')
+  const matchedKey = Object.keys(PROVIDER_VOICE_MAP).find(
+    k => k.toLowerCase().replace(/[-_]/g, '') === normalized
+  )
+  if (matchedKey && PROVIDER_VOICE_MAP[matchedKey]?.length) {
+    return PROVIDER_VOICE_MAP[matchedKey]
+  }
+  return DASHSCOPE_VOICES
 }
