@@ -6,7 +6,6 @@
 import React, { useMemo, useState } from 'react'
 import {
   getProviderVoices,
-  type VoiceCatalogEntry,
   type VoiceGender,
 } from '../contract/voice-catalog.ts'
 import styles from './VoiceCall.module.css'
@@ -16,7 +15,7 @@ export interface VoiceSelectorProps {
   selectedVoice: string
   disabled?: boolean
   onSelectVoice: (voiceId: string) => void
-  t: (key: string) => string
+  t?: (key: string) => string
 }
 
 export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
@@ -24,7 +23,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
   selectedVoice,
   disabled = false,
   onSelectVoice,
-  t,
+  t: _t,
 }) => {
   const [filterGender, setFilterGender] = useState<VoiceGender | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState('')
