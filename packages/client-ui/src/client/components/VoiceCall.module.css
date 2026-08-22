@@ -915,6 +915,43 @@
   color: #60a5fa;
 }
 
+.inputWrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.inputWrapper .popoverInput {
+  padding-right: 30px;
+}
+
+.eyeBtn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--dsw-alias-label-caption, #9ca3af);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+
+.eyeBtn:hover {
+  color: var(--dsw-alias-label-primary, #e5e7eb);
+}
+
+:global([data-theme="light"]) .eyeBtn:hover {
+  color: #1f2937;
+}
+
 .popoverInput {
   box-sizing: border-box;
   width: 100%;

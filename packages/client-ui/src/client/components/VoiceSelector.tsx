@@ -3,7 +3,7 @@
  * Provides rich card grid, gender/tag filters, search, and human-readable timbre labels.
  */
 
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   getProviderVoices,
   type VoiceGender,
@@ -28,6 +28,12 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
   const [filterGender, setFilterGender] = useState<VoiceGender | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [showCustom, setShowCustom] = useState(false)
+
+  // Reset filter & search when provider changes
+  useEffect(() => {
+    setSearchQuery('')
+    setFilterGender('all')
+  }, [provider])
 
   const catalog = useMemo(() => getProviderVoices(provider), [provider])
 

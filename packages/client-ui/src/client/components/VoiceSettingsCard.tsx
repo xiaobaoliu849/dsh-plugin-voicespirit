@@ -383,6 +383,8 @@ function TextField(props: {
   disabled?: boolean
   onEdit: (text: string) => void
 }) {
+  const [visible, setVisible] = useState(false)
+
   return (
     <label className={styles.field}>
       <span className={styles.fieldLabel}>
@@ -391,17 +393,51 @@ function TextField(props: {
           <span className={styles.overrideBadge}>{props.overriddenLabel}</span>
         )}
       </span>
-      <input
-        id={props.id}
-        type={props.secret ? 'password' : 'text'}
-        className={styles.input}
-        value={props.field.text}
-        placeholder={props.placeholder}
-        autoComplete="off"
-        spellCheck={false}
-        disabled={props.disabled}
-        onChange={(e) => { props.onEdit(e.target.value) }}
-      />
+      <div style={{ position: 'relative', width: '100%', display: 'flex', alignItems: 'center' }}>
+        <input
+          id={props.id}
+          type={props.secret && !visible ? 'password' : 'text'}
+          className={styles.input}
+          style={props.secret ? { paddingRight: '32px' } : undefined}
+          value={props.field.text}
+          placeholder={props.placeholder}
+          autoComplete="off"
+          spellCheck={false}
+          disabled={props.disabled}
+          onChange={(e) => { props.onEdit(e.target.value) }}
+        />
+        {props.secret && (
+          <button
+            type="button"
+            onClick={() => { setVisible(!visible) }}
+            title={visible ? '隐藏内容' : '显示内容'}
+            style={{
+              position: 'absolute',
+              right: '8px',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--dsw-alias-label-caption, #9ca3af)',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {visible ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                <line x1="1" y1="1" x2="23" y2="23" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            )}
+          </button>
+        )}
+      </div>
       {props.hint !== undefined && props.hint !== '' && (
         <span className={styles.fieldHint}>{props.hint}</span>
       )}

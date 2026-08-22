@@ -250,10 +250,35 @@ export function readBackendPath(document: BackendSettingsDocument | undefined, p
   if (document === undefined) return ''
   let cursor: unknown = document.settings ?? document
   for (const segment of path.split('.')) {
-    if (typeof cursor !== 'object' || cursor === null) return ''
+    if (typeof cursor !== 'object' || cursor === null) {
+      cursor = undefined
+      break
+    }
     cursor = (cursor as Record<string, unknown>)[segment]
   }
-  return typeof cursor === 'string' ? cursor : ''
+  if (typeof cursor === 'string' && cursor.trim() !== '') return cursor
+
+  // Fallback checks for Doubao and common keys
+  const root = document as Record<string, unknown>
+  const settings = ((document.settings ?? {}) as Record<string, unknown>)
+  const apiKeys = ((settings.api_keys ?? {}) as Record<string, unknown>)
+
+  if (path === 'doubao_access_token') {
+    if (typeof settings.doubao_access_token === 'string' && settings.doubao_access_token) return settings.doubao_access_token
+    if (typeof root.doubao_access_token === 'string' && root.doubao_access_token) return root.doubao_access_token
+    if (typeof apiKeys.doubao_access_token === 'string' && apiKeys.doubao_access_token) return apiKeys.doubao_access_token
+    if (typeof apiKeys.doubao_api_key === 'string' && apiKeys.doubao_api_key) return apiKeys.doubao_api_key
+  }
+  if (path === 'doubao_app_id') {
+    if (typeof settings.doubao_app_id === 'string' && settings.doubao_app_id) return settings.doubao_app_id
+    if (typeof root.doubao_app_id === 'string' && root.doubao_app_id) return root.doubao_app_id
+    if (typeof apiKeys.doubao_app_id === 'string' && apiKeys.doubao_app_id) return apiKeys.doubao_app_id
+  }
+  if (path === 'api_keys.dashscope_api_key') {
+    if (typeof settings.dashscope_api_key === 'string' && settings.dashscope_api_key) return settings.dashscope_api_key
+    if (typeof root.dashscope_api_key === 'string' && root.dashscope_api_key) return root.dashscope_api_key
+  }
+  return ''
 }
 
 /** Read a boolean dotted path from the backend document; undefined when absent. */

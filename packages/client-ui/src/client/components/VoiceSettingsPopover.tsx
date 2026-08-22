@@ -38,6 +38,11 @@ export const VoiceSettingsPopover: React.FC<VoiceSettingsPopoverProps> = ({
   const [savingKeys, setSavingKeys] = useState(false)
   const [keysResult, setKeysResult] = useState<'saved' | 'failed' | undefined>(undefined)
   const [showCredentials, setShowCredentials] = useState(false)
+  const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({})
+
+  const toggleVisibility = (path: string): void => {
+    setVisibleKeys((prev) => ({ ...prev, [path]: !prev[path] }))
+  }
 
   const provider = snapshot.engine.provider || 'DashScope'
   const entry = providerEntry(provider)
@@ -263,25 +268,53 @@ export const VoiceSettingsPopover: React.FC<VoiceSettingsPopoverProps> = ({
                         </div>
                       )}
                       {entry.credentials.map((spec) => {
-                        const configured = readBackendPath(document, spec.path) !== ''
+                        const configuredValue = readBackendPath(document, spec.path)
+                        const configured = configuredValue !== ''
+                        const isSecret = spec.secret
+                        const isVisible = visibleKeys[spec.path] === true
+                        const currentDraft = drafts[spec.path]
+                        const displayValue = currentDraft !== undefined ? currentDraft : (configured ? configuredValue : '')
+
                         return (
                           <label key={spec.path} className={styles.popoverField}>
                             <span className={styles.popoverLabel}>
                               {t(spec.labelKey as VoiceSpiritKey)}{configured ? ' ✓' : ''}
                             </span>
-                            <input
-                              type={spec.secret ? 'password' : 'text'}
-                              className={styles.popoverInput}
-                              value={drafts[spec.path] ?? ''}
-                              placeholder={configured ? '••••••••' : t(spec.placeholderKey as VoiceSpiritKey)}
-                              autoComplete="off"
-                              spellCheck={false}
-                              onChange={(e) => {
-                                const text = e.target.value
-                                setDrafts((prev) => ({ ...prev, [spec.path]: text }))
-                                setKeysResult(undefined)
-                              }}
-                            />
+                            <div className={styles.inputWrapper}>
+                              <input
+                                type={isSecret && !isVisible ? 'password' : 'text'}
+                                className={styles.popoverInput}
+                                value={displayValue}
+                                placeholder={t(spec.placeholderKey as VoiceSpiritKey)}
+                                autoComplete="off"
+                                spellCheck={false}
+                                onChange={(e) => {
+                                  const text = e.target.value
+                                  setDrafts((prev) => ({ ...prev, [spec.path]: text }))
+                                  setKeysResult(undefined)
+                                }}
+                              />
+                              {isSecret && (
+                                <button
+                                  type="button"
+                                  className={styles.eyeBtn}
+                                  onClick={() => { toggleVisibility(spec.path) }}
+                                  title={isVisible ? '隐藏内容' : '显示内容'}
+                                >
+                                  {isVisible ? (
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                                      <line x1="1" y1="1" x2="23" y2="23" />
+                                    </svg>
+                                  ) : (
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                      <circle cx="12" cy="12" r="3" />
+                                    </svg>
+                                  )}
+                                </button>
+                              )}
+                            </div>
                           </label>
                         )
                       })}
