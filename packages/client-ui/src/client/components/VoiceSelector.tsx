@@ -53,11 +53,11 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
   const isCustomSelected = !currentVoiceObj && selectedVoice !== ''
 
   return (
-    <div className={styles.voiceSelectorContainer} style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
       {/* 1. Header with search & filter pills */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
         {/* Gender Filter Pills */}
-        <div style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.05)', padding: '2px', borderRadius: '6px' }}>
+        <div style={{ display: 'flex', gap: '4px', background: 'var(--dsw-specific-selector, rgba(255,255,255,0.06))', padding: '2px', borderRadius: '6px' }}>
           {(['all', 'female', 'male'] as const).map((g) => (
             <button
               key={g}
@@ -69,8 +69,8 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                 padding: '2px 8px',
                 border: 'none',
                 borderRadius: '4px',
-                background: filterGender === g ? 'var(--dsh-accent, #10a37f)' : 'transparent',
-                color: filterGender === g ? '#fff' : 'inherit',
+                background: filterGender === g ? 'var(--dsw-alias-state-business-primary, #3b82f6)' : 'transparent',
+                color: filterGender === g ? '#fff' : 'var(--dsw-alias-label-secondary, #9ca3af)',
                 cursor: 'pointer',
                 fontWeight: filterGender === g ? 600 : 400,
                 transition: 'all 0.15s ease',
@@ -91,9 +91,10 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
           style={{
             fontSize: '11px',
             padding: '3px 8px',
-            borderRadius: '4px',
-            border: '1px solid rgba(128,128,128,0.25)',
-            background: 'transparent',
+            borderRadius: '6px',
+            border: '1px solid var(--dsw-alias-border-l2-darkmode-thin, rgba(255,255,255,0.15))',
+            background: 'var(--dsw-specific-selector, rgba(255,255,255,0.06))',
+            color: 'inherit',
             outline: 'none',
             maxWidth: '120px',
           }}
@@ -126,13 +127,13 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                 alignItems: 'flex-start',
                 textAlign: 'left',
                 padding: '6px 8px',
-                borderRadius: '6px',
+                borderRadius: '8px',
                 border: isSelected
-                  ? '1.5px solid var(--dsh-accent, #10a37f)'
-                  : '1px solid rgba(128,128,128,0.18)',
+                  ? '1.5px solid var(--dsw-alias-state-business-primary, #3b82f6)'
+                  : '1px solid var(--dsw-alias-border-l2-darkmode-thin, rgba(255,255,255,0.1))',
                 background: isSelected
-                  ? 'rgba(16, 163, 127, 0.08)'
-                  : 'rgba(128,128,128,0.04)',
+                  ? 'rgba(59, 130, 246, 0.12)'
+                  : 'var(--dsw-specific-selector, rgba(255,255,255,0.04))',
                 cursor: disabled ? 'not-allowed' : 'pointer',
                 transition: 'all 0.15s ease',
                 position: 'relative',
@@ -140,7 +141,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
             >
               {/* Voice Name & Gender Icon */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '4px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: isSelected ? 'var(--dsh-accent, #10a37f)' : 'inherit' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: isSelected ? 'var(--dsw-alias-state-business-primary, #3b82f6)' : 'inherit' }}>
                   {voice.displayName}
                 </span>
                 <span style={{ fontSize: '10px', opacity: 0.6 }}>
@@ -154,7 +155,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
               </div>
 
               {/* Tag badges */}
-              <div style={{ display: 'flex', gap: '2px', marginTop: '4px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '3px', marginTop: '4px', flexWrap: 'wrap' }}>
                 {voice.tags.slice(0, 2).map(tag => (
                   <span
                     key={tag}
@@ -162,7 +163,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                       fontSize: '9px',
                       padding: '1px 4px',
                       borderRadius: '3px',
-                      background: 'rgba(128,128,128,0.12)',
+                      background: 'var(--dsw-specific-selector, rgba(255,255,255,0.08))',
                       opacity: 0.85,
                     }}
                   >
@@ -190,7 +191,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
             background: 'none',
             border: 'none',
             fontSize: '11px',
-            color: 'var(--dsh-accent, #10a37f)',
+            color: 'var(--dsw-alias-state-business-primary, #3b82f6)',
             cursor: 'pointer',
             padding: '0',
             opacity: 0.85,
@@ -212,9 +213,10 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                 flex: 1,
                 fontSize: '11px',
                 padding: '4px 8px',
-                borderRadius: '4px',
-                border: '1px solid rgba(128,128,128,0.25)',
-                background: 'transparent',
+                borderRadius: '6px',
+                border: '1px solid var(--dsw-alias-border-l2-darkmode-thin, rgba(255,255,255,0.15))',
+                background: 'var(--dsw-specific-selector, rgba(255,255,255,0.06))',
+                color: 'inherit',
                 outline: 'none',
               }}
             />

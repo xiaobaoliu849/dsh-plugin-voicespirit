@@ -62,7 +62,7 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
       {/* Top Header */}
       <div className={styles.immersiveHeader}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 16, fontWeight: 600, color: '#f3f4f6' }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: '#f3f4f6', letterSpacing: '-0.01em' }}>
             VoiceSpirit
           </span>
           <span className={styles.statusPill}>
@@ -87,7 +87,7 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
             onClick={() => { controller.closeImmersive() }}
             title={t('minimize')}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="4" y1="14" x2="10" y2="14" />
               <line x1="10" y1="14" x2="10" y2="20" />
               <line x1="20" y1="10" x2="14" y2="10" />

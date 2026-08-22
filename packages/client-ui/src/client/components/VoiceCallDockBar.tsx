@@ -1,8 +1,7 @@
 /**
- * The dock ribbon above the composer while a call is live: status pill with
- * the live transcript, provider badge, reactive waveform, mute / interrupt /
- * quick settings / immersive, and the hang-up. All copy flows through the
- * plugin locale; the backend phase rides the same snapshot as the call state.
+ * The native integrated dock ribbon above the composer while a call is live:
+ * status dot, live audio waveform, model badge, single-line live streaming transcript,
+ * and compact action controls (mute, interrupt, quick settings, immersive view, hang-up).
  */
 
 import React from 'react'
@@ -30,25 +29,27 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
   // until the first sample lands; the analyser's smoothing keeps motion fluid.
   const bands = isSpeaking ? snapshot.spkBands : snapshot.micBands
   const waveHeights: number[] = bands.length === SPECTRUM_BANDS
-    ? bands.map((v) => 4 + Math.min(28, v * 64))
-    : new Array<number>(SPECTRUM_BANDS).fill(4)
+    ? bands.map((v) => 3 + Math.min(18, v * 48))
+    : new Array<number>(SPECTRUM_BANDS).fill(3)
 
-  const providerLabel = [engine.provider, engine.model, engine.voice]
+  const providerLabel = [engine.provider, engine.voice]
     .filter(part => part !== '')
-    .join(' / ')
+    .join(' · ')
 
-  // Server errors carry their real cause (missing key, bad realtime URL) —
-  // append it so the ribbon says what actually went wrong.
+  // Server errors carry their real cause
   const errorKey = controller.errorKey()
   const errorDetail = engine.phase === 'error'
     ? (errorKey !== undefined ? t(errorKey) : t('statusError'))
       + (engine.errorMessage ? ` — ${engine.errorMessage}` : '')
     : ''
-  const statusText = snapshot.assistantText
+
+  const currentTranscript = snapshot.assistantText
     ? `${t('aiSpeaking')}: ${snapshot.assistantText}`
     : snapshot.userText
     ? `${t('userSpeaking')}: ${snapshot.userText}`
-    : engine.phase === 'connecting' || snapshot.launching
+    : undefined
+
+  const fallbackStatusText = engine.phase === 'connecting' || snapshot.launching
     ? t('statusConnecting')
     : engine.phase === 'interrupted'
     ? t('statusInterrupted')
@@ -58,68 +59,28 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
     ? t('statusSpeaking')
     : t('statusListening')
 
-  // Mute must stay visible even while a transcript is streaming.
-  const fullStatusText = engine.isMuted && engine.phase !== 'error'
-    ? `${t('mutedState')} · ${statusText}`
-    : statusText
+  const displayText = currentTranscript || fallbackStatusText
 
   return (
     <div className={styles.vsDockRibbon}>
+      {/* 1. Left Cluster: Status dot, Waveform, Model tag */}
       <div className={styles.vsDockLeft}>
-        {/* Status Indicator */}
-        <div className={styles.vsStatusPill}>
-          <span
-            className={`${styles.statusDot} ${
-              engine.phase === 'connecting' || snapshot.launching
-                ? styles.dotConnecting
-                : engine.phase === 'interrupted'
-                ? styles.dotInterrupted
-                : engine.phase === 'error'
-                ? styles.dotError
-                : isSpeaking
-                ? styles.dotSpeaking
-                : styles.dotListening
-            }`}
-            aria-hidden="true"
-          />
-          <span className={styles.vsStatusText} role="status" aria-live="polite">{fullStatusText}</span>
-        </div>
+        <span
+          className={`${styles.statusDot} ${
+            engine.phase === 'connecting' || snapshot.launching
+              ? styles.dotConnecting
+              : engine.phase === 'interrupted'
+              ? styles.dotInterrupted
+              : engine.phase === 'error'
+              ? styles.dotError
+              : isSpeaking
+              ? styles.dotSpeaking
+              : styles.dotListening
+          }`}
+          aria-hidden="true"
+        />
 
-        {/* Inline retry when the session failed */}
-        {engine.phase === 'error' && (
-          <button
-            type="button"
-            className={styles.actionBtn}
-            onClick={() => { void controller.startCall() }}
-            title={t('retry')}
-          >
-            {t('retry')}
-          </button>
-        )}
-
-        {/* Model Tag */}
-        <div className={styles.vsModelBadge} title={providerLabel}>
-          {providerLabel}
-        </div>
-
-        {/* EverMemOS memory badge: active shows the last injected count */}
-        {snapshot.memory !== undefined && (
-          <div
-            className={styles.vsModelBadge}
-            title={snapshot.memory.active
-              ? `${t('memoryChip')} · ${t('memoryReady')}`
-              : t('memoryInactive')}
-          >
-            {snapshot.memory.active ? t('memoryChip') : t('memoryChipOff')}
-            {snapshot.memory.active && snapshot.memory.retrieved > 0
-              ? ` · ${String(snapshot.memory.retrieved)} ${t('memoryRetrieved')}`
-              : ''}
-          </div>
-        )}
-      </div>
-
-      <div className={styles.vsDockRight}>
-        {/* Dynamic Jumping Waveform */}
+        {/* Dynamic Waveform */}
         <div
           className={styles.vsWaveform}
           title={isSpeaking ? t('statusSpeaking') : t('statusListening')}
@@ -133,6 +94,40 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
           ))}
         </div>
 
+        {/* Provider & Voice Badge */}
+        {providerLabel && (
+          <div className={styles.vsModelBadge} title={providerLabel}>
+            {providerLabel}
+          </div>
+        )}
+
+        {/* Inline retry if session errored */}
+        {engine.phase === 'error' && (
+          <button
+            type="button"
+            className={styles.actionBtn}
+            onClick={() => { void controller.startCall() }}
+            title={t('retry')}
+          >
+            {t('retry')}
+          </button>
+        )}
+      </div>
+
+      {/* 2. Center Cluster: Realtime Single-Line Transcript */}
+      <div className={styles.vsDockCenter}>
+        <span
+          className={`${styles.vsLiveTranscript} ${currentTranscript ? styles.vsLiveTranscriptHighlight : ''}`}
+          role="status"
+          aria-live="polite"
+          title={displayText}
+        >
+          {displayText}
+        </span>
+      </div>
+
+      {/* 3. Right Cluster: Controls */}
+      <div className={styles.vsDockRight}>
         {/* Mute Button */}
         <button
           type="button"
@@ -173,10 +168,10 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
           </button>
         )}
 
-        {/* Voice & Provider Quick Settings */}
+        {/* Voice & Provider Quick Settings Popover */}
         <VoiceSettingsPopover snapshot={snapshot} controller={controller} t={t} />
 
-        {/* Immersive Mode */}
+        {/* Immersive Mode Expand Button */}
         <button
           type="button"
           className={styles.actionBtn}
@@ -191,14 +186,14 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
           </svg>
         </button>
 
-        {/* Hang Up Button (VoiceSpirit Exact Red Badge) */}
+        {/* Hang Up Button */}
         <button
           type="button"
           className={styles.vsHangupBtn}
           onClick={() => { controller.endCall() }}
           title={t('endVoiceCall')}
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(135deg)' }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(135deg)' }}>
             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" />
             <line x1="22" y1="2" x2="16" y2="8" />
             <line x1="16" y1="2" x2="22" y2="8" />
