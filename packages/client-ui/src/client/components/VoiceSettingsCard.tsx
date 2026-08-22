@@ -9,6 +9,7 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import { PROVIDER_CATALOG } from '../contract/settings.ts'
 import type { VoiceSpiritKey } from '../locales.ts'
 import type { VoiceSettingsCardFace } from '../voice-card-controller.ts'
+import { VoiceSelector } from './VoiceSelector.tsx'
 import type {} from '../card-slot-contract.ts'
 import styles from './VoiceSettingsCard.module.css'
 
@@ -234,36 +235,16 @@ export function VoiceSettingsCard(props: VoiceSettingsCardProps) {
             </label>
           </div>
           <div className={styles.fieldRow}>
-            <label className={styles.field}>
+            <div className={styles.field} style={{ width: '100%' }}>
               <span className={styles.fieldLabel}>{t('defaultVoice')}</span>
-              <select
-                className={styles.select}
-                value={state.voice}
+              <VoiceSelector
+                provider={state.provider}
+                selectedVoice={state.voice}
                 disabled={!state.writable}
-                onChange={(e) => { props.selectVoice(e.target.value) }}
-              >
-                {(PROVIDER_CATALOG.find(e => e.id === state.provider)?.voices ?? []).map((voice) => (
-                  <option key={voice} value={voice}>{voice}</option>
-                ))}
-                {!PROVIDER_CATALOG.find(e => e.id === state.provider)?.voices.includes(state.voice)
-                  && state.voice !== ''
-                  && <option value={state.voice}>{state.voice}</option>}
-              </select>
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>{t('customVoice')}</span>
-              <input
-                id="voicespirit-custom-voice"
-                type="text"
-                className={styles.input}
-                value={state.voice}
-                autoComplete="off"
-                spellCheck={false}
-                disabled={!state.writable}
-                onChange={(e) => { props.selectVoice(e.target.value) }}
+                onSelectVoice={(voiceId) => { props.selectVoice(voiceId) }}
+                t={t as (k: string) => string}
               />
-              <span className={styles.fieldHint}>{t('customVoiceHint')}</span>
-            </label>
+            </div>
           </div>
 
           {/* ── Credentials ─────────────────────────────────────────── */}

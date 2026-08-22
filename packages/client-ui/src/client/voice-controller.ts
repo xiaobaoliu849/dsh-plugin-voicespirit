@@ -18,6 +18,7 @@ import { VoiceSpiritBackend, type VoiceSpiritBackendState } from './backend.ts'
 import {
   buildMemorySessionConfig,
   providerEntry,
+  readBackendPath,
   readMemorySettingsView,
   VOICESPIRIT_SETTINGS_NAMESPACE,
   type BackendSettingsDocument,
@@ -196,6 +197,18 @@ export class VoiceSpiritController {
         await this.backendClient.start()
       } finally {
         this.launching = false
+      }
+    }
+    // Pre-validate that credentials exist for the selected provider
+    const document = await this.backendClient.fetchSettings()
+    if (document !== undefined) {
+      const provider = this.settings?.defaultProvider ?? 'DashScope'
+      const entry = providerEntry(provider)
+      const missingSecrets = entry.credentials
+        .filter(c => c.secret)
+        .filter(c => readBackendPath(document, c.path).trim() === '')
+      if (missingSecrets.length > 0) {
+        console.warn('[ui-voicespirit] Cannot start call: missing credentials for', provider)
       }
     }
     // Memory rides the session handshake: resolve it from the backend's stored

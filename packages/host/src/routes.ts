@@ -178,12 +178,28 @@ async function proxyVoiceChatWebSocket(
       try { client.close(code, reason.slice(0, 100)) } catch { client.terminate() }
       try { upstream.close() } catch { upstream.terminate() }
     }
-    const flushPending = (): void => {
-      for (const frame of pendingFrames.splice(0, pendingFrames.length)) {
-        upstream.send(frame.data, { binary: frame.isBinary })
+    const upstreamTimeout = setTimeout(() => {
+      if (upstream.readyState !== WebSocket.OPEN) {
+        ctx.logger.warn('host-voicespirit: upstream handshake timed out after 10s')
+        closeDownstream(1013, 'VoiceSpirit backend connection timed out')
       }
+    }, 10_000)
+
+    const flushPending = (): void => {
+      clearTimeout(upstreamTimeout)
+      // Send text/JSON control frames (e.g. config) before binary audio frames
+      const textFrames = pendingFrames.filter(f => !f.isBinary)
+      const binFrames = pendingFrames.filter(f => f.isBinary)
+      for (const frame of textFrames) {
+        upstream.send(frame.data, { binary: false })
+      }
+      for (const frame of binFrames) {
+        upstream.send(frame.data, { binary: true })
+      }
+      pendingFrames.length = 0
     }
     upstream.on('open', () => {
+      clearTimeout(upstreamTimeout)
       ctx.logger.debug('host-voicespirit: realtime upstream connected')
       flushPending()
     })

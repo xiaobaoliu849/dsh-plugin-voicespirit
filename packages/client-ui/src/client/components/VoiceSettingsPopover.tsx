@@ -15,6 +15,7 @@ import {
   type BackendSettingsDocument,
 } from '../contract/settings.ts'
 import type { VoiceSpiritKey } from '../locales.ts'
+import { VoiceSelector } from './VoiceSelector.tsx'
 import styles from './VoiceCall.module.css'
 
 export interface VoiceSettingsPopoverProps {
@@ -154,6 +155,21 @@ export const VoiceSettingsPopover: React.FC<VoiceSettingsPopoverProps> = ({
               )}
             </div>
 
+            {/* Missing Credentials Warning Banner */}
+            {entry.credentials.some(spec => spec.secret && readBackendPath(document, spec.path) === '') && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '6px',
+                padding: '6px 8px',
+                fontSize: '11px',
+                color: '#ef4444',
+                lineHeight: '1.4',
+              }}>
+                ⚠️ 当前未配置 {provider} API Key，通话将无法正常回复，请在下方填写并保存。
+              </div>
+            )}
+
             {/* Provider */}
             <label className={styles.popoverField}>
               <span className={styles.popoverLabel}>{t('provider')}</span>
@@ -186,20 +202,17 @@ export const VoiceSettingsPopover: React.FC<VoiceSettingsPopoverProps> = ({
               </select>
             </label>
 
-            {/* Voice */}
-            <label className={styles.popoverField}>
+            {/* Rich Voice Timbre Selector */}
+            <div className={styles.popoverField}>
               <span className={styles.popoverLabel}>{t('voice')}</span>
-              <select
-                className={styles.popoverSelect}
-                value={snapshot.engine.voice || entry.voices[0] || ''}
+              <VoiceSelector
+                provider={provider}
+                selectedVoice={snapshot.engine.voice || entry.voices[0] || ''}
                 disabled={saving}
-                onChange={(e) => { void applySelection({ voice: e.target.value }) }}
-              >
-                {entry.voices.map((voice) => (
-                  <option key={voice} value={voice}>{voice}</option>
-                ))}
-              </select>
-            </label>
+                onSelectVoice={(voiceId) => { void applySelection({ voice: voiceId }) }}
+                t={t as (k: string) => string}
+              />
+            </div>
 
             {/* Credentials for the selected provider, editable inline */}
             {entry.credentials.length > 0 && (

@@ -158,6 +158,11 @@ export class VoiceAudioEngine {
   // generic close-code diagnosis so config problems surface verbatim.
   private serverErrorMessage: string | undefined
 
+  // Liveness tracking: if the backend accepts the WebSocket but never sends
+  // any message (silent failure due to missing config), time out and report.
+  private receivedAnyMessage: boolean = false
+  private aliveTimer: ReturnType<typeof setTimeout> | null = null
+
   // Playback scheduler & interruption generation counter
   private playbackGeneration: number = 0
   private nextPlaybackTime: number = 0
@@ -199,6 +204,8 @@ export class VoiceAudioEngine {
     this.errorMessage = ''
     this.errorCode = 'unknown'
     this.serverErrorMessage = undefined
+    this.receivedAnyMessage = false
+    if (this.aliveTimer !== null) { clearTimeout(this.aliveTimer); this.aliveTimer = null }
     this.memory = this.options.memory === undefined ? undefined : {
       active: false,
       scope: '',
@@ -225,6 +232,16 @@ export class VoiceAudioEngine {
           this.ws.send(JSON.stringify({ type: 'config', memory: this.options.memory }))
         }
         this.setPhase('listening')
+        // Start a liveness timer: if the backend accepts the socket but
+        // never sends any message within 15 s, the session is silently
+        // broken (typically a misconfigured provider or missing key that
+        // the provider SDK swallows).
+        this.aliveTimer = setTimeout(() => {
+          if (!this.receivedAnyMessage && this.isConnected) {
+            this.fail('server', '语音服务已连接但无响应 — 请检查当前 Provider 的 API Key 和 Realtime URL 配置')
+            this.stop(false, true)
+          }
+        }, 15_000)
       }
 
       this.ws.onmessage = (event) => {
@@ -284,6 +301,10 @@ export class VoiceAudioEngine {
    * @param keepError - keep the error phase (and its message) visible after teardown.
    */
   public stop(sendClose: boolean = true, keepError: boolean = false): void {
+    if (this.aliveTimer !== null) {
+      clearTimeout(this.aliveTimer)
+      this.aliveTimer = null
+    }
     this.stopLevelMonitor()
     this.clearAudioPlayback()
 
@@ -440,6 +461,11 @@ export class VoiceAudioEngine {
   }
 
   private handleWsMessage(data: string | ArrayBuffer): void {
+    this.receivedAnyMessage = true
+    if (this.aliveTimer !== null) {
+      clearTimeout(this.aliveTimer)
+      this.aliveTimer = null
+    }
     try {
       let msg: VoiceServerEvent | undefined
       if (typeof data === 'string') {
@@ -556,9 +582,12 @@ export class VoiceAudioEngine {
             ? msg.message
             : 'voice service error'
           this.serverErrorMessage = serverMessage
-          this.errorCode = 'server'
-          this.errorMessage = serverMessage
-          this.options.onError?.({ code: 'server', message: serverMessage })
+          // Immediately transition to error state and disconnect — previously
+          // the engine only recorded the error but kept the 'listening' phase,
+          // so the user would see "Listening…" while the backend had already
+          // refused to process audio (e.g. missing API key).
+          this.fail('server', serverMessage)
+          this.stop(false, true)
           break
         }
       }
