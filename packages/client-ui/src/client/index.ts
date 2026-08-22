@@ -78,7 +78,7 @@ export function apply(ctx: ClientContext): void {
       ),
   )
 
-  // 2. VoiceSpirit integrated stage (Audio Orb + Ribbon + Controls + Hangup)
+  // 2. VoiceSpirit integrated stage (Ribbon + Controls + Hangup)
   //    stacked above the composer, plus the immersive full-screen view.
   ctx.slots.inject(
     'conversation.input.dock',
@@ -89,7 +89,7 @@ export function apply(ctx: ClientContext): void {
           id: 'ui-voicespirit:dock',
           order: 10,
           locale: NS,
-          inject: () => ({ controller, t }),
+          inject: (ownerProps: Record<string, unknown>) => ({ controller, t, ...ownerProps }),
         },
         VoiceCallDockView,
       ),
