@@ -1277,4 +1277,58 @@
   animation: pulseDot 1.2s infinite;
 }
 
+/* Voice Card Preview Button & Visualizer */
+.voicePreviewBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 4px;
+  border: 1px solid var(--dsw-alias-border-l2-darkmode-thin, rgba(255, 255, 255, 0.12));
+  background: var(--dsw-specific-selector, rgba(255, 255, 255, 0.06));
+  color: var(--dsw-alias-label-primary, #d1d5db);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.voicePreviewBtn:hover {
+  background: var(--dsw-alias-state-business-primary, #3b82f6);
+  color: #ffffff;
+  border-color: var(--dsw-alias-state-business-primary, #3b82f6);
+}
+
+.voicePreviewBtnActive {
+  background: var(--dsw-alias-state-business-primary, #3b82f6) !important;
+  color: #ffffff !important;
+  border-color: var(--dsw-alias-state-business-primary, #3b82f6) !important;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+}
+
+.previewPlayingBars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1.5px;
+  height: 8px;
+}
+
+.previewPlayingBar {
+  width: 2px;
+  background: currentColor;
+  border-radius: 1px;
+  animation: previewBarJump 0.5s ease-in-out infinite alternate;
+}
+
+.previewPlayingBar:nth-child(1) { height: 3px; animation-delay: 0s; }
+.previewPlayingBar:nth-child(2) { height: 8px; animation-delay: 0.15s; }
+.previewPlayingBar:nth-child(3) { height: 5px; animation-delay: 0.3s; }
+
+@keyframes previewBarJump {
+  0% { height: 2px; }
+  100% { height: 8px; }
+}
+
 
