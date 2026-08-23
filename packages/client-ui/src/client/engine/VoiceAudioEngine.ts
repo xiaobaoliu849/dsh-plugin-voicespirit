@@ -625,9 +625,9 @@ export class VoiceAudioEngine {
 
             // If assistant had already replied in the current turn and new user speech arrived,
             // or if turn_id changed, commit the previous completed turn
-            if (!isInterim && (this.currentAssistantText.trim().length > 0 || this.currentTranslationText.trim().length > 0)) {
-              this.commitTurnIfPending(msg.turn_id)
-            } else if (msg.turn_id && this.currentTurnId && msg.turn_id !== this.currentTurnId) {
+            const hasPendingReply = this.currentAssistantText.trim().length > 0 || this.currentTranslationText.trim().length > 0
+            const turnChanged = Boolean(msg.turn_id && this.currentTurnId && msg.turn_id !== this.currentTurnId)
+            if ((!isInterim && hasPendingReply) || turnChanged) {
               this.commitTurnIfPending(msg.turn_id)
             }
 
