@@ -46,6 +46,16 @@ export interface VoiceSpiritUiState {
   isUserInterim: boolean
   /** Assistant text accumulated for the turn in flight. */
   assistantText: string
+  /** Live translated text streamed in flight. */
+  translationText: string
+  /** Active voice interaction mode: dialogue (conversation) or translate (simultaneous interpreter). */
+  activeVoiceMode: 'dialogue' | 'translate'
+  /** LiveTranslate source language (e.g. zh-Hans). */
+  sourceLanguage: string
+  /** LiveTranslate target language (e.g. en). */
+  targetLanguage: string
+  /** Whether to speak translated speech aloud via TTS. */
+  echoTargetLanguage: boolean
   /** Completed turns of this browser session (newest last, capped). */
   historyTurns: VoiceTranscriptTurn[]
   /** Backend status snapshot; undefined before the first answer. */
@@ -88,6 +98,7 @@ export class VoiceSpiritController {
   private userText = ''
   private isUserInterim = false
   private assistantText = ''
+  private translationText = ''
   private settings: VoiceSpiritSettings | undefined
   private immersiveOpen = false
   private launching = false
@@ -104,10 +115,11 @@ export class VoiceSpiritController {
         this.spkBands = spkBands
         this.publish()
       },
-      onTranscriptChange: (userText, isUserInterim, assistantText) => {
+      onTranscriptChange: (userText, isUserInterim, assistantText, translationText) => {
         this.userText = userText
         this.isUserInterim = isUserInterim
         this.assistantText = assistantText
+        this.translationText = translationText || ''
         this.publish()
       },
       onTurnComplete: (turn) => {
@@ -118,6 +130,7 @@ export class VoiceSpiritController {
         this.userText = ''
         this.isUserInterim = false
         this.assistantText = ''
+        this.translationText = ''
         this.publish()
       },
       onError: (error) => {
@@ -137,6 +150,7 @@ export class VoiceSpiritController {
 
   /** Publish the current composite snapshot. */
   getSnapshot(): VoiceSpiritUiState {
+    const isTranslate = this.settings?.activeVoiceMode === 'translate' || (this.settings?.defaultModel ? this.settings.defaultModel.includes('translate') : false)
     return {
       engine: this.engine.getState(),
       micLevel: this.micLevel,
@@ -146,6 +160,11 @@ export class VoiceSpiritController {
       userText: this.userText,
       isUserInterim: this.isUserInterim,
       assistantText: this.assistantText,
+      translationText: this.translationText,
+      activeVoiceMode: isTranslate ? 'translate' : 'dialogue',
+      sourceLanguage: this.settings?.sourceLanguage || 'zh-Hans',
+      targetLanguage: this.settings?.targetLanguage || 'en',
+      echoTargetLanguage: this.settings?.echoTargetLanguage !== false,
       historyTurns: this.historyTurns,
       backend: this.backendClient.getSnapshot(),
       settings: this.settings,
@@ -314,6 +333,58 @@ export class VoiceSpiritController {
     return this.engine.sendText(text)
   }
 
+  /** Switch between Dialogue mode and LiveTranslate simultaneous interpreter mode. */
+  async setVoiceMode(mode: 'dialogue' | 'translate'): Promise<void> {
+    const currentProvider = this.settings?.defaultProvider || 'DashScope'
+    let targetModel = this.settings?.defaultModel || ''
+
+    if (mode === 'translate') {
+      if (currentProvider === 'DashScope') {
+        targetModel = 'qwen3.5-livetranslate-flash-realtime'
+      } else if (currentProvider === 'Google') {
+        targetModel = 'gemini-3.5-live-translate-preview'
+      }
+    } else {
+      if (currentProvider === 'DashScope' && targetModel.includes('livetranslate')) {
+        targetModel = 'qwen3.5-omni-plus-realtime'
+      } else if (currentProvider === 'Google' && targetModel.includes('translate')) {
+        targetModel = 'gemini-3.1-flash-live-preview'
+      }
+    }
+
+    await Promise.all([
+      this.settingsScope.set('activeVoiceMode', mode),
+      this.settingsScope.set('defaultModel', targetModel),
+    ])
+    this.syncEngineConfig()
+    this.publish()
+  }
+
+  /** Set source and target languages for LiveTranslate. */
+  async setLanguagePair(source: string, target: string): Promise<void> {
+    await Promise.all([
+      this.settingsScope.set('sourceLanguage', source),
+      this.settingsScope.set('targetLanguage', target),
+    ])
+    this.syncEngineConfig()
+    this.publish()
+  }
+
+  /** Swap source and target languages instantly. */
+  async swapLanguages(): Promise<void> {
+    const src = this.settings?.sourceLanguage || 'zh-Hans'
+    const tgt = this.settings?.targetLanguage || 'en'
+    await this.setLanguagePair(tgt, src)
+  }
+
+  /** Toggle whether the AI speaks translated text aloud. */
+  async toggleEchoTargetLanguage(): Promise<void> {
+    const current = this.settings?.echoTargetLanguage !== false
+    await this.settingsScope.set('echoTargetLanguage', !current)
+    this.syncEngineConfig()
+    this.publish()
+  }
+
   /** Quick switch from the popover; writes through the settings scope. */
   async setVoiceSelection(patch: { provider?: string, model?: string, voice?: string }): Promise<void> {
     const entry = providerEntry(patch.provider ?? this.engine.getState().provider)
@@ -341,6 +412,10 @@ export class VoiceSpiritController {
       provider: settings.defaultProvider || entry.id,
       model: settings.defaultModel || entry.models[0] || '',
       voice: settings.defaultVoice || entry.voices[0] || '',
+      translationMode: settings.translationMode || 'bidirectional',
+      sourceLanguage: settings.sourceLanguage || 'zh-Hans',
+      targetLanguage: settings.targetLanguage || 'en',
+      echoTargetLanguage: settings.echoTargetLanguage !== false,
     })
   }
 

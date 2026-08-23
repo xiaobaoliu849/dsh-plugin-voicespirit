@@ -36,6 +36,49 @@ export interface VoiceSpiritSettings {
   defaultVoice: string
   /** Access token for an externally started, auth-enabled backend. */
   apiToken: string
+  /** Active voice interaction mode: dialogue (regular chat) or translate (live simultaneous interpreter). */
+  activeVoiceMode?: 'dialogue' | 'translate'
+  /** Translation mode: bidirectional (two-way) or unidirectional. */
+  translationMode?: 'bidirectional' | 'unidirectional'
+  /** Source language code for LiveTranslate. */
+  sourceLanguage?: string
+  /** Target language code for LiveTranslate. */
+  targetLanguage?: string
+  /** Whether the AI speaks the translated text out loud via TTS. */
+  echoTargetLanguage?: boolean
+}
+
+export interface TranslateLanguage {
+  value: string
+  label: string
+  labelZh: string
+  flag: string
+}
+
+export const LIVE_TRANSLATE_TARGET_LANGUAGES: readonly TranslateLanguage[] = [
+  { value: 'zh-Hans', label: 'Chinese (Simplified)', labelZh: '中文 (简体)', flag: '🇨🇳' },
+  { value: 'zh-Hant', label: 'Chinese (Traditional)', labelZh: '中文 (繁体)', flag: '🇭🇰' },
+  { value: 'en', label: 'English', labelZh: '英语', flag: '🇺🇸' },
+  { value: 'ja', label: 'Japanese', labelZh: '日语', flag: '🇯🇵' },
+  { value: 'ko', label: 'Korean', labelZh: '韩语', flag: '🇰🇷' },
+  { value: 'fr', label: 'French', labelZh: '法语', flag: '🇫🇷' },
+  { value: 'de', label: 'German', labelZh: '德语', flag: '🇩🇪' },
+  { value: 'es', label: 'Spanish', labelZh: '西班牙语', flag: '🇪🇸' },
+  { value: 'ru', label: 'Russian', labelZh: '俄语', flag: '🇷🇺' },
+  { value: 'it', label: 'Italian', labelZh: '意大利语', flag: '🇮🇹' },
+  { value: 'pt-BR', label: 'Portuguese (Brazil)', labelZh: '葡萄牙语', flag: '🇧🇷' },
+  { value: 'ar', label: 'Arabic', labelZh: '阿拉伯语', flag: '🇸🇦' },
+  { value: 'th', label: 'Thai', labelZh: '泰语', flag: '🇹🇭' },
+  { value: 'vi', label: 'Vietnamese', labelZh: '越南语', flag: '🇻🇳' },
+  { value: 'id', label: 'Indonesian', labelZh: '印尼语', flag: '🇮🇩' },
+]
+
+export function isLiveTranslateModel(provider: string, model: string): boolean {
+  const normP = (provider || '').toLowerCase()
+  const normM = (model || '').toLowerCase()
+  if (normP.includes('dashscope') && normM.includes('livetranslate')) return true
+  if (normP.includes('google') && (normM.includes('translate') || normM.includes('live-translate'))) return true
+  return false
 }
 
 /** One credential field a provider needs in the backend config document. */
@@ -133,7 +176,7 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
   {
     id: 'Google',
     labelKey: 'providerGoogle',
-    models: ['gemini-3.1-flash-live-preview'],
+    models: ['gemini-3.1-flash-live-preview', 'gemini-3.5-live-translate-preview'],
     voices: ['Puck', 'Charon', 'Kore', 'Fenrir', 'Aoede', 'Zephyr', 'Lyra', 'Leda', 'Achird', 'Autonoe'],
     credentials: [
       {

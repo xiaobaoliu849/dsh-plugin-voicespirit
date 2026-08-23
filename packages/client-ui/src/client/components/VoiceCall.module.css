@@ -1331,4 +1331,124 @@
   100% { height: 8px; }
 }
 
+/* ── Live Translation Mode & Bilingual Subtitle Styles ── */
+.modeSegmentControl {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--dsw-specific-selector, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--dsw-alias-border-l2-darkmode-thin, rgba(255, 255, 255, 0.1));
+  padding: 2px;
+  border-radius: 8px;
+}
+
+.modeSegmentBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  height: 20px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #9ca3af);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  line-height: 1;
+}
+
+.modeSegmentBtn:hover {
+  color: var(--dsw-alias-label-primary, #ffffff);
+}
+
+.modeSegmentBtnActive {
+  background: var(--dsw-alias-state-business-primary, #3b82f6) !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(59, 130, 246, 0.35);
+}
+
+.langPairPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--dsw-specific-selector, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--dsw-alias-border-l2-darkmode-thin, rgba(255, 255, 255, 0.1));
+  font-size: 11px;
+  color: var(--dsw-alias-label-primary, #e5e7eb);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.langPairPill:hover {
+  border-color: var(--dsw-alias-state-business-primary, #3b82f6);
+  background: var(--dsw-alias-interactive-bg-hover-solid, rgba(59, 130, 246, 0.12));
+}
+
+.langSwapBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-state-business-primary, #3b82f6);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  padding: 0;
+}
+
+.langSwapBtn:hover {
+  transform: rotate(180deg);
+}
+
+/* Bilingual Translation Subtitle Bubbles in VoiceDialogueStream */
+.dialogueBilingualContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.dialogueSourceBlock {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--dsw-alias-label-primary, #f3f4f6);
+  opacity: 0.95;
+}
+
+.dialogueTranslationBlock {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--dsw-alias-border-l2-darkmode-thin, rgba(255, 255, 255, 0.15));
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dialogueTranslationLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--dsw-alias-state-business-primary, #38bdf8);
+  letter-spacing: 0.02em;
+}
+
+.dialogueTranslationContent {
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 500;
+  color: #38bdf8;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+}
+
 

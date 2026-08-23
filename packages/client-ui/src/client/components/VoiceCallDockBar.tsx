@@ -43,11 +43,19 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
       + (engine.errorMessage ? ` — ${engine.errorMessage}` : '')
     : ''
 
-  const currentTranscript = snapshot.assistantText
-    ? `${t('aiSpeaking')}: ${snapshot.assistantText}`
-    : snapshot.userText
-    ? `${t('userSpeaking')}: ${snapshot.userText}`
-    : undefined
+  const isTranslateMode = snapshot.activeVoiceMode === 'translate'
+
+  const currentTranscript = isTranslateMode
+    ? (snapshot.translationText
+        ? `🌐 译文: ${snapshot.translationText}`
+        : snapshot.userText
+        ? `👤 原文: ${snapshot.userText}`
+        : undefined)
+    : (snapshot.assistantText
+        ? `${t('aiSpeaking')}: ${snapshot.assistantText}`
+        : snapshot.userText
+        ? `${t('userSpeaking')}: ${snapshot.userText}`
+        : undefined)
 
   const fallbackStatusText = engine.phase === 'connecting' || snapshot.launching
     ? t('statusConnecting')
@@ -55,6 +63,8 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
     ? t('statusInterrupted')
     : engine.phase === 'error'
     ? errorDetail
+    : isTranslateMode
+    ? t('liveTranslationActive')
     : isSpeaking
     ? t('statusSpeaking')
     : t('statusListening')
@@ -63,7 +73,7 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
 
   return (
     <div className={styles.vsDockRibbon}>
-      {/* 1. Left Cluster: Status dot, Waveform, Model tag */}
+      {/* 1. Left Cluster: Status dot, Waveform, Mode toggle & Language Pill */}
       <div className={styles.vsDockLeft}>
         <span
           className={`${styles.statusDot} ${
@@ -94,11 +104,55 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
           ))}
         </div>
 
-        {/* Provider & Voice Badge */}
-        {providerLabel && (
-          <div className={styles.vsModelBadge} title={providerLabel}>
-            {providerLabel}
+        {/* Mode Switcher Capsule */}
+        <div className={styles.modeSegmentControl}>
+          <button
+            type="button"
+            className={`${styles.modeSegmentBtn} ${!isTranslateMode ? styles.modeSegmentBtnActive : ''}`}
+            onClick={() => { void controller.setVoiceMode('dialogue') }}
+            title={t('modeDialogueDesc')}
+          >
+            <span>🗣️</span>
+            <span>{t('modeDialogue')}</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.modeSegmentBtn} ${isTranslateMode ? styles.modeSegmentBtnActive : ''}`}
+            onClick={() => { void controller.setVoiceMode('translate') }}
+            title={t('modeTranslateDesc')}
+          >
+            <span>🌐</span>
+            <span>{t('modeTranslate')}</span>
+          </button>
+        </div>
+
+        {/* LiveTranslate Language Pair Pill */}
+        {isTranslateMode ? (
+          <div
+            className={styles.langPairPill}
+            onClick={() => { void controller.swapLanguages() }}
+            title={t('swapLanguages')}
+          >
+            <span>{snapshot.sourceLanguage.startsWith('zh') ? '🇨🇳 中' : snapshot.sourceLanguage.toUpperCase()}</span>
+            <button
+              type="button"
+              className={styles.langSwapBtn}
+              onClick={(e) => {
+                e.stopPropagation()
+                void controller.swapLanguages()
+              }}
+              title={t('swapLanguages')}
+            >
+              ⇄
+            </button>
+            <span>{snapshot.targetLanguage.startsWith('en') ? '🇺🇸 英' : snapshot.targetLanguage.toUpperCase()}</span>
           </div>
+        ) : (
+          providerLabel && (
+            <div className={styles.vsModelBadge} title={providerLabel}>
+              {providerLabel}
+            </div>
+          )
         )}
 
         {/* Inline retry if session errored */}

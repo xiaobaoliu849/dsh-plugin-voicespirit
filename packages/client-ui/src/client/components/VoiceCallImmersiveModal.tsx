@@ -118,7 +118,14 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
         {snapshot.historyTurns.slice(-4).map((turn) => (
           <React.Fragment key={turn.id}>
             <div className={styles.userSubtitle}>{turn.userText}</div>
-            <div className={styles.aiSubtitle}>{turn.assistantText}</div>
+            {turn.translationText && (
+              <div className={styles.aiSubtitle} style={{ color: '#38bdf8' }}>
+                🌐 {turn.translationText}
+              </div>
+            )}
+            {turn.assistantText && !turn.translationText && (
+              <div className={styles.aiSubtitle}>{turn.assistantText}</div>
+            )}
           </React.Fragment>
         ))}
 
@@ -128,7 +135,13 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
           </div>
         )}
 
-        {snapshot.assistantText && (
+        {snapshot.translationText && (
+          <div className={styles.aiSubtitle} style={{ color: '#38bdf8' }}>
+            🌐 {snapshot.translationText}
+          </div>
+        )}
+
+        {snapshot.assistantText && !snapshot.translationText && (
           <div className={styles.aiSubtitle}>
             {snapshot.assistantText}
           </div>

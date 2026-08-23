@@ -46,9 +46,12 @@ export const VoiceDialogueStream: React.FC<VoiceDialogueStreamProps> = ({
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   }
 
+  const isTranslateMode = snapshot.activeVoiceMode === 'translate'
+
   const hasAnyContent = snapshot.historyTurns.length > 0
     || snapshot.userText.trim().length > 0
     || snapshot.assistantText.trim().length > 0
+    || snapshot.translationText.trim().length > 0
     || engine.phase !== 'idle'
 
   if (!hasAnyContent) return null
@@ -58,61 +61,107 @@ export const VoiceDialogueStream: React.FC<VoiceDialogueStreamProps> = ({
       <div className={styles.dialogueStreamHeader}>
         <div className={styles.dialogueStreamTitle}>
           <span className={styles.dialogueStatusDot} />
-          <span>{t('pluginName')} 实时语音对话</span>
-          <span className={styles.dialogueProviderBadge}>{providerLabel}</span>
+          <span>{isTranslateMode ? '🌐 实时双向同传口译' : '🎙️ 实时语音对话'}</span>
+          <span className={styles.dialogueProviderBadge}>
+            {isTranslateMode ? `${snapshot.sourceLanguage.toUpperCase()} ⇄ ${snapshot.targetLanguage.toUpperCase()}` : providerLabel}
+          </span>
         </div>
       </div>
 
       <div className={styles.dialogueMessagesList}>
         {/* Completed history turns */}
-        {snapshot.historyTurns.map((turn, index) => (
-          <React.Fragment key={turn.id || `turn_${index}`}>
-            {turn.userText && (
-              <div className={styles.dialogueRowUser}>
-                <div className={styles.dialogueBubbleUser}>
-                  <div className={styles.dialogueMeta}>
-                    <span className={styles.dialogueAuthor}>🎙 您</span>
-                    <span className={styles.dialogueTime}>{formatTime(turn.timestamp)}</span>
-                  </div>
-                  <div className={styles.dialogueBody}>{turn.userText}</div>
-                </div>
-              </div>
-            )}
-
-            {turn.assistantText && (
-              <div className={styles.dialogueRowAssistant}>
-                <div className={styles.dialogueBubbleAssistant}>
-                  <div className={styles.dialogueMeta}>
-                    <span className={styles.dialogueAuthor}>✨ 助手 ({providerLabel})</span>
-                    <div className={styles.dialogueActions}>
-                      <span className={styles.dialogueTime}>{formatTime(turn.timestamp)}</span>
-                      <button
-                        type="button"
-                        className={styles.dialogueCopyBtn}
-                        onClick={() => { copyText(turn.assistantText, turn.id) }}
-                        title={copiedId === turn.id ? '已复制' : '复制回答'}
-                      >
-                        {copiedId === turn.id ? '✓ 已复制' : '复制'}
-                      </button>
+        {snapshot.historyTurns.map((turn, index) => {
+          const isBilingualTurn = Boolean(turn.translationText)
+          return (
+            <React.Fragment key={turn.id || `turn_${index}`}>
+              {/* User spoken turn (or bilingual pair in translate mode) */}
+              {turn.userText && (
+                <div className={styles.dialogueRowUser}>
+                  <div className={styles.dialogueBubbleUser}>
+                    <div className={styles.dialogueMeta}>
+                      <span className={styles.dialogueAuthor}>🎙 您 {isBilingualTurn ? `(${turn.sourceLanguage || '源语言'})` : ''}</span>
+                      <div className={styles.dialogueActions}>
+                        <span className={styles.dialogueTime}>{formatTime(turn.timestamp)}</span>
+                        {isBilingualTurn && (
+                          <button
+                            type="button"
+                            className={styles.dialogueCopyBtn}
+                            onClick={() => { copyText(`${turn.userText}\n${turn.translationText}`, turn.id) }}
+                            title={copiedId === turn.id ? t('copiedBilingual') : t('copyBilingual')}
+                          >
+                            {copiedId === turn.id ? '✓ 已复制' : t('copyBilingual')}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className={styles.dialogueBody}>
+                      <div className={styles.dialogueSourceBlock}>{turn.userText}</div>
+                      {turn.translationText && (
+                        <div className={styles.dialogueTranslationBlock}>
+                          <div className={styles.dialogueTranslationLabel}>
+                            <span>🌐 译文 ({turn.targetLanguage || '目标语言'})</span>
+                          </div>
+                          <div className={styles.dialogueTranslationContent}>{turn.translationText}</div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className={styles.dialogueBody}>{turn.assistantText}</div>
                 </div>
-              </div>
-            )}
-          </React.Fragment>
-        ))}
+              )}
 
-        {/* In-flight streaming turn: User live transcription */}
-        {snapshot.userText && (
+              {/* Standard assistant reply when not in pure translation turn */}
+              {turn.assistantText && !turn.translationText && (
+                <div className={styles.dialogueRowAssistant}>
+                  <div className={styles.dialogueBubbleAssistant}>
+                    <div className={styles.dialogueMeta}>
+                      <span className={styles.dialogueAuthor}>✨ 助手 ({providerLabel})</span>
+                      <div className={styles.dialogueActions}>
+                        <span className={styles.dialogueTime}>{formatTime(turn.timestamp)}</span>
+                        <button
+                          type="button"
+                          className={styles.dialogueCopyBtn}
+                          onClick={() => { copyText(turn.assistantText, turn.id) }}
+                          title={copiedId === turn.id ? '已复制' : '复制回答'}
+                        >
+                          {copiedId === turn.id ? '✓ 已复制' : '复制'}
+                        </button>
+                      </div>
+                    </div>
+                    <div className={styles.dialogueBody}>{turn.assistantText}</div>
+                  </div>
+                </div>
+              )}
+            </React.Fragment>
+          )
+        })}
+
+        {/* In-flight streaming turn: User live transcription & translation */}
+        {(snapshot.userText || snapshot.translationText) && (
           <div className={styles.dialogueRowUser}>
             <div className={`${styles.dialogueBubbleUser} ${styles.dialogueBubbleStreaming}`}>
               <div className={styles.dialogueMeta}>
-                <span className={styles.dialogueAuthor}>🎙 您 (实时转写中...)</span>
+                <span className={styles.dialogueAuthor}>
+                  {isTranslateMode ? '🌐 实时同传识别中…' : '🎙 您 (实时转写中...)'}
+                </span>
               </div>
               <div className={styles.dialogueBody}>
-                {snapshot.userText}
-                <span className={styles.streamCursor} />
+                {snapshot.userText && (
+                  <div className={styles.dialogueSourceBlock}>
+                    {snapshot.userText}
+                    {!snapshot.translationText && <span className={styles.streamCursor} />}
+                  </div>
+                )}
+                {snapshot.translationText && (
+                  <div className={styles.dialogueTranslationBlock}>
+                    <div className={styles.dialogueTranslationLabel}>
+                      <span>🌐 实时译文 ({snapshot.targetLanguage.toUpperCase()})</span>
+                    </div>
+                    <div className={styles.dialogueTranslationContent}>
+                      {snapshot.translationText}
+                      <span className={styles.streamCursor} />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -144,17 +193,17 @@ export const VoiceDialogueStream: React.FC<VoiceDialogueStreamProps> = ({
         )}
 
         {/* Ambient status hint when silent */}
-        {engine.phase === 'listening' && !snapshot.userText && !snapshot.assistantText && (
+        {engine.phase === 'listening' && !snapshot.userText && !snapshot.assistantText && !snapshot.translationText && (
           <div className={styles.dialogueListeningHint}>
             <span className={styles.listeningWaveAnimation} />
-            <span>正在聆听中，请直接说话...</span>
+            <span>{isTranslateMode ? '同传准备就绪，请直接说任意语言…' : '正在聆听中，请直接说话...'}</span>
           </div>
         )}
 
-        {engine.phase === 'speaking' && !snapshot.assistantText && (
+        {engine.phase === 'speaking' && !snapshot.assistantText && !snapshot.translationText && (
           <div className={styles.dialogueListeningHint}>
             <span className={styles.speakingWaveAnimation} />
-            <span>AI 正在组织回答并播报...</span>
+            <span>AI 正在播报中...</span>
           </div>
         )}
 
