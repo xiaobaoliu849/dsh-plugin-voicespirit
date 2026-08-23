@@ -134,7 +134,7 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     id: 'Google',
     labelKey: 'providerGoogle',
     models: ['gemini-3.1-flash-live-preview'],
-    voices: ['Puck', 'Charon', 'Kore', 'Fenrir', 'Aoede', 'Leda', 'Orus', 'Zephyr'],
+    voices: ['Puck', 'Charon', 'Kore', 'Fenrir', 'Aoede', 'Zephyr', 'Lyra', 'Leda', 'Achird', 'Autonoe'],
     credentials: [
       {
         path: 'api_keys.google_api_key',
