@@ -37,6 +37,7 @@ export interface VoiceEngineState {
   phase: VoiceEnginePhase
   isConnected: boolean
   isMuted: boolean
+  isPushToTalk?: boolean
   provider: string
   model: string
   voice: string
@@ -234,10 +235,13 @@ export class VoiceAudioEngine {
   private micProcessor: ScriptProcessorNode | null = null
   private micSink: GainNode | null = null
   private mediaStream: MediaStream | null = null
+  private speakerGain: GainNode | null = null
   private speakerAnalyser: AnalyserNode | null = null
 
   private ws: WebSocket | null = null
   private isMuted: boolean = false
+  private isPushToTalk: boolean = false
+  private wasMutedBeforePushToTalk: boolean = false
   private isConnected: boolean = false
   private phase: VoiceEnginePhase = 'idle'
   private errorMessage: string = ''
@@ -285,6 +289,7 @@ export class VoiceAudioEngine {
       phase: this.phase,
       isConnected: this.isConnected,
       isMuted: this.isMuted,
+      isPushToTalk: this.isPushToTalk,
       provider: this.options.provider || '',
       model: this.options.model || '',
       voice: this.options.voice || '',
@@ -418,6 +423,10 @@ export class VoiceAudioEngine {
       this.micSource.disconnect()
       this.micSource = null
     }
+    if (this.speakerGain) {
+      this.speakerGain.disconnect()
+      this.speakerGain = null
+    }
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach((t) => t.stop())
       this.mediaStream = null
@@ -439,6 +448,8 @@ export class VoiceAudioEngine {
     }
 
     this.isConnected = false
+    this.isPushToTalk = false
+    this.wasMutedBeforePushToTalk = false
     if (keepError && this.phase === 'error') {
       this.notifyState()
       return
@@ -453,6 +464,39 @@ export class VoiceAudioEngine {
     }
     this.notifyState()
     return this.isMuted
+  }
+
+  public startPushToTalk(): void {
+    if (!this.isConnected || this.isPushToTalk) return
+    this.isPushToTalk = true
+    this.wasMutedBeforePushToTalk = this.isMuted
+    if (this.isMuted) {
+      this.isMuted = false
+      if (this.micGain) {
+        this.micGain.gain.value = 1
+      }
+    }
+    // If AI is speaking, interrupt to yield voice floor immediately
+    if (this.phase === 'speaking') {
+      this.interrupt()
+    }
+    this.notifyState()
+  }
+
+  public stopPushToTalk(): void {
+    if (!this.isPushToTalk) return
+    this.isPushToTalk = false
+    if (this.wasMutedBeforePushToTalk) {
+      this.isMuted = true
+      if (this.micGain) {
+        this.micGain.gain.value = 0
+      }
+    }
+    this.notifyState()
+  }
+
+  public isPushToTalkActive(): boolean {
+    return this.isPushToTalk
   }
 
   /**
@@ -523,6 +567,8 @@ export class VoiceAudioEngine {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
+        // @ts-expect-error voiceIsolation is an experimental standard constraint in Chrome/Safari
+        voiceIsolation: true,
       },
     })
 
@@ -531,11 +577,16 @@ export class VoiceAudioEngine {
     this.micAnalyser = this.audioCtx.createAnalyser()
     this.micAnalyser.fftSize = 256
 
+    this.speakerGain = this.audioCtx.createGain()
+    this.speakerGain.gain.setValueAtTime(1, this.audioCtx.currentTime)
     this.speakerAnalyser = this.audioCtx.createAnalyser()
     this.speakerAnalyser.fftSize = 256
 
     this.micSource.connect(this.micGain)
     this.micGain.connect(this.micAnalyser)
+
+    this.speakerGain.connect(this.speakerAnalyser)
+    this.speakerAnalyser.connect(this.audioCtx.destination)
 
     // Setup ScriptProcessor for downsampling & streaming 16kHz PCM chunks
     const bufferSize = 4096
@@ -779,7 +830,15 @@ export class VoiceAudioEngine {
     const source = this.audioCtx.createBufferSource()
     source.buffer = audioBuf
 
-    if (this.speakerAnalyser) {
+    if (this.speakerGain) {
+      const now = this.audioCtx.currentTime
+      if (this.speakerGain.gain.value < 0.99) {
+        this.speakerGain.gain.cancelScheduledValues(now)
+        this.speakerGain.gain.setValueAtTime(this.speakerGain.gain.value, now)
+        this.speakerGain.gain.linearRampToValueAtTime(1.0, now + 0.02)
+      }
+      source.connect(this.speakerGain)
+    } else if (this.speakerAnalyser) {
       source.connect(this.speakerAnalyser)
       this.speakerAnalyser.connect(this.audioCtx.destination)
     } else {
@@ -808,13 +867,23 @@ export class VoiceAudioEngine {
   private clearAudioPlayback(): void {
     this.playbackGeneration += 1
     this.nextPlaybackTime = 0
-    for (const src of this.activeSources) {
-      try {
-        src.stop()
-        src.disconnect()
-      } catch {}
+    if (this.speakerGain && this.audioCtx) {
+      const now = this.audioCtx.currentTime
+      this.speakerGain.gain.cancelScheduledValues(now)
+      this.speakerGain.gain.setValueAtTime(this.speakerGain.gain.value, now)
+      // Smooth 40ms linear fade out to completely prevent pop / click
+      this.speakerGain.gain.linearRampToValueAtTime(0.0001, now + 0.04)
     }
+    const sourcesToStop = [...this.activeSources]
     this.activeSources = []
+    setTimeout(() => {
+      for (const src of sourcesToStop) {
+        try {
+          src.stop()
+          src.disconnect()
+        } catch {}
+      }
+    }, 45)
   }
 
   private startLevelMonitor(): void {

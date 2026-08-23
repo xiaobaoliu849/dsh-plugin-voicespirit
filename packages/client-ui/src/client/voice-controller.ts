@@ -314,6 +314,14 @@ export class VoiceSpiritController {
     this.engine.toggleMute()
   }
 
+  startPushToTalk(): void {
+    this.engine.startPushToTalk()
+  }
+
+  stopPushToTalk(): void {
+    this.engine.stopPushToTalk()
+  }
+
   interrupt(): void {
     this.engine.interrupt()
   }

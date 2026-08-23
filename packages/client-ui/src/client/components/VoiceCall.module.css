@@ -1495,4 +1495,69 @@
   line-height: 1.4;
 }
 
+/* ── Keyboard Shortcuts & Push-to-Talk HUD ── */
+.kbdBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
+  line-height: 1;
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  background: var(--dsw-specific-selector, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--dsw-alias-border-l2-darkmode-thin, rgba(255, 255, 255, 0.15));
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  user-select: none;
+  pointer-events: none;
+}
+
+.kbdHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary, #6b7280);
+}
+
+:global([data-theme="dark"]) .kbdHint {
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+}
+
+.dockPushToTalkActive {
+  border-color: rgba(16, 185, 129, 0.6) !important;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.25), var(--dsw-shadow-lv2, 0 4px 16px rgba(0, 0, 0, 0.04)) !important;
+}
+
+.pttTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  animation: pulseMic 1.2s infinite alternate;
+}
+
+.immersiveShortcutBar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+
 

@@ -24,25 +24,63 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
 }) => {
   const { engine } = snapshot
   const isSpeaking = engine.phase === 'speaking' || snapshot.speakerLevel > 0.05
+  const isPushToTalk = Boolean(engine.isPushToTalk)
   const activeLevel = isSpeaking ? snapshot.speakerLevel : snapshot.micLevel
   const orbScale = 1 + Math.min(0.35, activeLevel * 0.7)
 
   const backdropRef = useRef<HTMLDivElement>(null)
   const subtitlesRef = useRef<HTMLDivElement>(null)
 
-  // Escape leaves immersive mode; focus lands here on open so keyboard users
-  // start inside the dialog.
+  // Keyboard shortcuts within immersive view:
+  // - Escape: leave immersive
+  // - Space (hold): push-to-talk
+  // - M: toggle mute
+  // - Enter (while AI speaking): interrupt
   useEffect(() => {
+    const isEditingText = (target: EventTarget | null): boolean => {
+      if (!target || !(target instanceof HTMLElement)) return false
+      const tag = target.tagName.toLowerCase()
+      return tag === 'input' || tag === 'textarea' || target.isContentEditable
+    }
+
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         event.stopPropagation()
         controller.closeImmersive()
+        return
+      }
+
+      if (isEditingText(event.target)) return
+
+      if (event.code === 'Space' && !event.repeat) {
+        event.preventDefault()
+        controller.startPushToTalk()
+      } else if (event.code === 'KeyM' && !event.repeat) {
+        event.preventDefault()
+        controller.toggleMute()
+      } else if (event.key === 'Enter' && !event.repeat && isSpeaking) {
+        event.preventDefault()
+        controller.interrupt()
       }
     }
+
+    const onKeyUp = (event: KeyboardEvent): void => {
+      if (event.code === 'Space') {
+        if (!isEditingText(event.target)) {
+          event.preventDefault()
+        }
+        controller.stopPushToTalk()
+      }
+    }
+
     window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
     backdropRef.current?.focus()
-    return () => { window.removeEventListener('keydown', onKeyDown) }
-  }, [controller])
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+    }
+  }, [controller, isSpeaking])
 
   // Keep the newest subtitle in view as turns stream in.
   useEffect(() => {
@@ -75,7 +113,13 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
                   : styles.dotListening
               }`}
             />
-            {engine.provider} · {engine.voice}
+            {isPushToTalk ? (
+              <span className={styles.pttTag} style={{ marginLeft: 2 }}>
+                🎙️ {t('pushToTalkActive')}
+              </span>
+            ) : (
+              `${engine.provider} · ${engine.voice}`
+            )}
           </span>
         </div>
 
@@ -159,7 +203,7 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
           className={`${styles.actionBtn} ${engine.isMuted ? styles.actionBtnMuted : ''}`}
           style={{ width: 44, height: 44, borderRadius: 22 }}
           onClick={() => { controller.toggleMute() }}
-          title={engine.isMuted ? t('unmute') : t('mute')}
+          title={`${engine.isMuted ? t('unmute') : t('mute')} (${t('shortcutMute')})`}
         >
           {engine.isMuted ? (
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -185,7 +229,7 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
             className={styles.actionBtn}
             style={{ width: 44, height: 44, borderRadius: 22 }}
             onClick={() => { controller.interrupt() }}
-            title={t('interrupt')}
+            title={`${t('interrupt')} (${t('shortcutInterrupt')})`}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
@@ -212,6 +256,22 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
           </svg>
           <span>{t('endVoiceCall')}</span>
         </button>
+      </div>
+
+      {/* Keyboard Shortcuts Hint Bar */}
+      <div className={styles.immersiveShortcutBar}>
+        <span className={styles.kbdHint}>
+          <kbd className={styles.kbdBadge}>Space</kbd> {t('shortcutPushToTalk')}
+        </span>
+        <span className={styles.kbdHint}>
+          <kbd className={styles.kbdBadge}>M</kbd> {t('shortcutMute')}
+        </span>
+        <span className={styles.kbdHint}>
+          <kbd className={styles.kbdBadge}>Enter</kbd> {t('shortcutInterrupt')}
+        </span>
+        <span className={styles.kbdHint}>
+          <kbd className={styles.kbdBadge}>Esc</kbd> {t('shortcutImmersive')}
+        </span>
       </div>
     </div>
   )
