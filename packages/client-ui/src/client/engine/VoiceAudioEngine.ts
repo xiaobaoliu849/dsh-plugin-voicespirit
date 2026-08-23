@@ -51,11 +51,16 @@ export interface VoiceCallOptions {
   provider?: string | undefined
   model?: string | undefined
   voice?: string | undefined
+  /** LiveTranslate options */
+  translationMode?: 'bidirectional' | 'unidirectional' | undefined
+  sourceLanguage?: string | undefined
+  targetLanguage?: string | undefined
+  echoTargetLanguage?: boolean | undefined
   /** EverMemOS payload sent in the session `config` message; undefined = memory off. */
   memory?: EvermemSessionConfig | undefined
   onStateChange?: ((state: VoiceEngineState) => void) | undefined
   onLevelsChange?: ((micLevel: number, speakerLevel: number, micBands: number[], speakerBands: number[]) => void) | undefined
-  onTranscriptChange?: ((userText: string, isInterim: boolean, assistantText: string) => void) | undefined
+  onTranscriptChange?: ((userText: string, isInterim: boolean, assistantText: string, translationText?: string) => void) | undefined
   onTurnComplete?: ((turn: VoiceTranscriptTurn) => void) | undefined
   onError?: ((error: { code: VoiceEngineErrorCode, message: string }) => void) | undefined
 }
@@ -64,6 +69,9 @@ export interface VoiceTranscriptTurn {
   id: string
   userText: string
   assistantText: string
+  translationText?: string
+  sourceLanguage?: string
+  targetLanguage?: string
   timestamp: number
   interrupted?: boolean
 }
@@ -72,6 +80,11 @@ export interface VoiceTranscriptTurn {
 interface VoiceServerEvent {
   type?: string
   text?: string
+  translation?: string
+  source_text?: string
+  target_text?: string
+  source_language?: string
+  target_language?: string
   interim?: boolean
   audio?: string
   data?: string
@@ -233,6 +246,7 @@ export class VoiceAudioEngine {
 
   private currentUserText: string = ''
   private currentAssistantText: string = ''
+  private currentTranslationText: string = ''
   private isUserInterim: boolean = false
   private currentTurnId: string = ''
   private currentTurnInterrupted: boolean = false
@@ -478,6 +492,12 @@ export class VoiceAudioEngine {
     if (this.options.provider) url.searchParams.set('provider', this.options.provider)
     if (this.options.model) url.searchParams.set('model', this.options.model)
     if (this.options.voice) url.searchParams.set('voice', this.options.voice)
+    if (this.options.translationMode) url.searchParams.set('translation_mode', this.options.translationMode)
+    if (this.options.sourceLanguage) url.searchParams.set('source_language_code', this.options.sourceLanguage)
+    if (this.options.targetLanguage) url.searchParams.set('target_language_code', this.options.targetLanguage)
+    if (this.options.echoTargetLanguage !== undefined) {
+      url.searchParams.set('echo_target_language', String(this.options.echoTargetLanguage))
+    }
     return url.toString()
   }
 
@@ -547,11 +567,15 @@ export class VoiceAudioEngine {
   private commitTurnIfPending(newTurnId?: string, isInterrupted?: boolean): void {
     const user = this.currentUserText.trim()
     const assistant = this.currentAssistantText.trim()
-    if (user || assistant) {
+    const translation = this.currentTranslationText.trim()
+    if (user || assistant || translation) {
       const turn: VoiceTranscriptTurn = {
         id: this.currentTurnId || `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         userText: user,
         assistantText: assistant,
+        translationText: translation || undefined,
+        sourceLanguage: this.options.sourceLanguage,
+        targetLanguage: this.options.targetLanguage,
         timestamp: Date.now(),
         interrupted: isInterrupted ?? this.currentTurnInterrupted,
       }
@@ -559,6 +583,7 @@ export class VoiceAudioEngine {
     }
     this.currentUserText = ''
     this.currentAssistantText = ''
+    this.currentTranslationText = ''
     this.isUserInterim = false
     this.currentTurnInterrupted = false
     if (newTurnId !== undefined) {
@@ -593,15 +618,16 @@ export class VoiceAudioEngine {
 
         case 'user_transcript':
         case 'transcript':
-          if (msg.text !== undefined) {
-            const incoming = msg.text
+        case 'conversation.item.input_audio_transcription.text':
+          if (msg.text !== undefined || msg.source_text !== undefined) {
+            const incoming = msg.text ?? msg.source_text ?? ''
             const isInterim = msg.interim ?? false
 
             // If assistant had already replied in the current turn and new user speech arrived,
             // or if turn_id changed, commit the previous completed turn
-            if (!isInterim && this.currentAssistantText.trim().length > 0) {
-              this.commitTurnIfPending(msg.turn_id)
-            } else if (msg.turn_id && this.currentTurnId && msg.turn_id !== this.currentTurnId) {
+            const hasPendingReply = this.currentAssistantText.trim().length > 0 || this.currentTranslationText.trim().length > 0
+            const turnChanged = Boolean(msg.turn_id && this.currentTurnId && msg.turn_id !== this.currentTurnId)
+            if ((!isInterim && hasPendingReply) || turnChanged) {
               this.commitTurnIfPending(msg.turn_id)
             }
 
@@ -617,6 +643,24 @@ export class VoiceAudioEngine {
             if (this.phase === 'speaking' && incoming.trim().length > 0) {
               this.interrupt()
             }
+          }
+          break
+
+        case 'translation':
+        case 'response.audio_transcript.text':
+        case 'response.audio_transcript.done':
+        case 'response.text.text':
+        case 'response.text.done':
+          if (msg.text || msg.translation || msg.target_text) {
+            const incomingTranslation = msg.translation || msg.target_text || msg.text || ''
+            if (msg.turn_id && this.currentTurnId && msg.turn_id !== this.currentTurnId) {
+              this.commitTurnIfPending(msg.turn_id)
+            }
+            if (msg.turn_id) {
+              this.currentTurnId = msg.turn_id
+            }
+            this.currentTranslationText = mergeAssistantText(this.currentTranslationText, incomingTranslation)
+            this.notifyTranscript()
           }
           break
 
@@ -839,6 +883,7 @@ export class VoiceAudioEngine {
       this.currentUserText,
       this.isUserInterim,
       this.currentAssistantText,
+      this.currentTranslationText,
     )
   }
 

@@ -10,6 +10,7 @@ export interface VoiceHeroExperienceProps {
   currentUserText: string
   isUserInterim: boolean
   currentAssistantText: string
+  currentTranslationText?: string
 }
 
 export const VoiceHeroExperience: React.FC<VoiceHeroExperienceProps> = ({
@@ -20,6 +21,7 @@ export const VoiceHeroExperience: React.FC<VoiceHeroExperienceProps> = ({
   currentUserText,
   isUserInterim,
   currentAssistantText,
+  currentTranslationText,
 }) => {
   const isSpeaking = state.phase === 'speaking' || speakerLevel > 0.05
   const activeLevel = isSpeaking ? speakerLevel : micLevel
@@ -63,7 +65,12 @@ export const VoiceHeroExperience: React.FC<VoiceHeroExperienceProps> = ({
                 <span>{turn.userText}</span>
               </div>
             )}
-            {turn.assistantText && (
+            {turn.translationText && (
+              <div className={styles.nativeAssistantBubble} style={{ background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(59, 130, 246, 0.2) 100%)', borderColor: 'rgba(56, 189, 248, 0.35)' }}>
+                <span>🌐 {turn.translationText}</span>
+              </div>
+            )}
+            {turn.assistantText && !turn.translationText && (
               <div className={styles.nativeAssistantBubble}>
                 <span>{turn.assistantText}</span>
               </div>
@@ -77,7 +84,13 @@ export const VoiceHeroExperience: React.FC<VoiceHeroExperienceProps> = ({
           </div>
         )}
 
-        {currentAssistantText && (
+        {currentTranslationText && (
+          <div className={styles.nativeAssistantBubble} style={{ background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(59, 130, 246, 0.2) 100%)', borderColor: 'rgba(56, 189, 248, 0.35)' }}>
+            <span>🌐 {currentTranslationText}</span>
+          </div>
+        )}
+
+        {currentAssistantText && !currentTranslationText && (
           <div className={styles.nativeAssistantBubble}>
             <span>{currentAssistantText}</span>
           </div>

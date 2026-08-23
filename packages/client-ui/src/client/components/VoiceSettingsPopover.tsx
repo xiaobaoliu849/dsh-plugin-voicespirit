@@ -10,6 +10,7 @@ import React, { useState } from 'react'
 import type { VoiceSpiritController, VoiceSpiritUiState } from '../voice-controller.ts'
 import {
   PROVIDER_CATALOG,
+  LIVE_TRANSLATE_TARGET_LANGUAGES,
   providerEntry,
   readBackendPath,
   type BackendSettingsDocument,
@@ -186,6 +187,116 @@ export const VoiceSettingsPopover: React.FC<VoiceSettingsPopoverProps> = ({
                   </button>
                 )}
               </div>
+
+              {/* Interaction Mode */}
+              <div className={styles.popoverField}>
+                <span className={styles.popoverLabel}>{t('modeDialogue')} / {t('modeTranslate')}</span>
+                <div className={styles.modeSegmentControl} style={{ width: '100%' }}>
+                  <button
+                    type="button"
+                    className={`${styles.modeSegmentBtn} ${snapshot.activeVoiceMode !== 'translate' ? styles.modeSegmentBtnActive : ''}`}
+                    style={{ flex: 1, justifyContent: 'center' }}
+                    onClick={() => { void controller.setVoiceMode('dialogue') }}
+                  >
+                    🗣️ {t('modeDialogue')}
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.modeSegmentBtn} ${snapshot.activeVoiceMode === 'translate' ? styles.modeSegmentBtnActive : ''}`}
+                    style={{ flex: 1, justifyContent: 'center' }}
+                    onClick={() => { void controller.setVoiceMode('translate') }}
+                  >
+                    🌐 {t('modeTranslate')}
+                  </button>
+                </div>
+              </div>
+
+              {/* LiveTranslate Language Pair Settings (shown in Translate mode) */}
+              {snapshot.activeVoiceMode === 'translate' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px', background: 'rgba(59,130,246,0.06)', borderRadius: '8px', border: '1px solid rgba(59,130,246,0.15)' }}>
+                  {/* Hint card */}
+                  <div className={styles.translationHintCard}>
+                    ✨ 自动识别输入语言（70+ 种）· 输出自动复刻说话人音色并流式同传
+                  </div>
+
+                  {/* Preset Target Language Pills */}
+                  <div>
+                    <span className={styles.popoverLabel} style={{ fontSize: '11px' }}>常用目标语</span>
+                    <div className={styles.presetPillsGroup}>
+                      {[
+                        { label: '英语', code: 'en' },
+                        { label: '日语', code: 'ja' },
+                        { label: '韩语', code: 'ko' },
+                        { label: '法语', code: 'fr' },
+                        { label: '德语', code: 'de' },
+                        { label: '西班牙语', code: 'es' },
+                        { label: '中文', code: 'zh-Hans' },
+                      ].map((item) => {
+                        const active = snapshot.targetLanguage === item.code
+                        return (
+                          <button
+                            key={`preset_${item.code}`}
+                            type="button"
+                            className={`${styles.presetPillBtn} ${active ? styles.presetPillBtnActive : ''}`}
+                            onClick={() => { void controller.setLanguagePair(snapshot.sourceLanguage, item.code) }}
+                          >
+                            {item.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Language pair selectors */}
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <span className={styles.popoverLabel} style={{ fontSize: '11px' }}>{t('sourceLanguage')}</span>
+                      <select
+                        className={styles.popoverSelect}
+                        value={snapshot.sourceLanguage}
+                        onChange={(e) => { void controller.setLanguagePair(e.target.value, snapshot.targetLanguage) }}
+                      >
+                        {LIVE_TRANSLATE_TARGET_LANGUAGES.map((lang) => (
+                          <option key={lang.value} value={lang.value}>{lang.flag} {lang.labelZh}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <button
+                      type="button"
+                      className={styles.langSwapBtn}
+                      style={{ marginTop: '14px', width: '24px', height: '24px', background: 'rgba(59,130,246,0.15)', borderRadius: '6px' }}
+                      onClick={() => { void controller.swapLanguages() }}
+                      title={t('swapLanguages')}
+                    >
+                      ⇄
+                    </button>
+
+                    <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <span className={styles.popoverLabel} style={{ fontSize: '11px' }}>{t('targetLanguage')}</span>
+                      <select
+                        className={styles.popoverSelect}
+                        value={snapshot.targetLanguage}
+                        onChange={(e) => { void controller.setLanguagePair(snapshot.sourceLanguage, e.target.value) }}
+                      >
+                        {LIVE_TRANSLATE_TARGET_LANGUAGES.map((lang) => (
+                          <option key={lang.value} value={lang.value}>{lang.flag} {lang.labelZh}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  {/* Echo Audio Toggle */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', cursor: 'pointer', color: 'var(--dsw-alias-label-secondary, #9ca3af)' }}>
+                    <input
+                      type="checkbox"
+                      checked={snapshot.echoTargetLanguage}
+                      onChange={() => { void controller.toggleEchoTargetLanguage() }}
+                    />
+                    <span>{t('echoTranslation')}</span>
+                  </label>
+                </div>
+              )}
 
               {/* Provider */}
               <label className={styles.popoverField}>
