@@ -10,6 +10,7 @@ import {
   type VoiceCatalogEntry,
   type VoiceGender,
 } from '../contract/voice-catalog.ts'
+import { PRESET_VOICE_SAMPLES } from '../contract/voice-samples.ts'
 import styles from './VoiceCall.module.css'
 
 export interface VoiceSelectorProps {
@@ -96,7 +97,10 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
       ? `Hello! I am ${voice.displayName}, nice to meet you.`
       : `您好，我是 ${voice.displayName}，很高兴为您服务。`
 
-    // Determine backend TTS engine
+    // 1. Instant 0ms playback if pre-rendered preset sample is available
+    const presetSample = PRESET_VOICE_SAMPLES[voice.id]
+    
+    // 2. Fallback to live backend TTS proxy for custom/fine-tuned IDs
     let engine = 'edge'
     const normProvider = provider.toLowerCase()
     if (normProvider.includes('dashscope')) {
@@ -111,9 +115,9 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
       engine = 'xiaomi'
     }
 
-    const ttsUrl = `/api/voicespirit/tts/speak?text=${encodeURIComponent(sampleText)}&voice=${encodeURIComponent(voice.id)}&engine=${encodeURIComponent(engine)}`
+    const audioSrc = presetSample || `/api/voicespirit/tts/speak?text=${encodeURIComponent(sampleText)}&voice=${encodeURIComponent(voice.id)}&engine=${encodeURIComponent(engine)}`
 
-    const audio = new Audio(ttsUrl)
+    const audio = new Audio(audioSrc)
     audioRef.current = audio
 
     audio.onended = () => {
@@ -122,7 +126,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
     }
 
     audio.onerror = () => {
-      // Fallback to browser SpeechSynthesis if backend is offline/unreachable
+      // Fallback to browser SpeechSynthesis if audio playback fails
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         const utterance = new SpeechSynthesisUtterance(sampleText)
         utterance.lang = isEn ? 'en-US' : 'zh-CN'
@@ -139,7 +143,6 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
     }
 
     audio.play().catch(() => {
-      // Browser autoplay policy or load error fallback
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         const utterance = new SpeechSynthesisUtterance(sampleText)
         utterance.lang = isEn ? 'en-US' : 'zh-CN'
