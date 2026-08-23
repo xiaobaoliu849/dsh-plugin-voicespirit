@@ -137,6 +137,29 @@ export function registerVoiceSpiritRoutes(ctx: Context, gateway: VoiceSpiritGate
         )
       },
     },
+    {
+      kind: 'exact',
+      path: `${VOICESPIRIT_API_PATH}/tts/speak`,
+      handler: async (req, res) => {
+        const query = new URL(req.url ?? '/', 'http://x').search
+        const result = await gateway.proxyRaw(`/api/tts/speak${query}`, { method: 'GET' })
+        if (!result.ok) {
+          json(res, result.status, { ok: false, error: result.message })
+          return
+        }
+        const contentType = result.response.headers.get('content-type') || 'audio/mpeg'
+        res.writeHead(200, { 'content-type': contentType })
+        if (result.response.body) {
+          const reader = result.response.body.getReader()
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            res.write(value)
+          }
+        }
+        res.end()
+      },
+    },
   ]
   for (const route of routes) {
     ctx.effect(() => ctx.webServer.register(route), `host-voicespirit: ${route.kind} ${route.path}`)

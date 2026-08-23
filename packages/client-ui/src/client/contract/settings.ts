@@ -176,8 +176,14 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
   {
     id: 'Cartesia',
     labelKey: 'providerCartesia',
-    models: ['cartesia-realtime'],
-    voices: ['f786b574-daa5-4673-aa0c-cbe3e8534c02'],
+    models: ['cartesia-realtime', 'sonic-preview', 'sonic-3.5', 'sonic-3'],
+    voices: [
+      'f786b574-daa5-4673-aa0c-cbe3e8534c02',
+      'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4',
+      'a5136bf9-224c-4d76-b823-52bd5efcffcc',
+      '62ae83ad-4f6a-430b-af41-a9bede9286ca',
+      'ef191366-f52f-447a-a398-ed8c0f2943a1',
+    ],
     credentials: cartesiaCredentials,
     hintKey: 'hintCartesia',
   },

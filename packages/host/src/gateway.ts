@@ -176,6 +176,36 @@ export class VoiceSpiritGateway {
   }
 
   /**
+   * Proxy a raw HTTP response (e.g. streaming TTS audio) with auth token attached.
+   */
+  async proxyRaw(path: string, init: RequestInit = {}, extraHeaders?: Record<string, string>): Promise<
+    { ok: true; response: Response } | { ok: false; status: number; message: string }
+  > {
+    const probe = await this.probe()
+    if (!probe.healthy) {
+      return { ok: false, status: 503, message: 'VoiceSpirit backend is not running' }
+    }
+    const token = this.pickToken()
+    try {
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        ...init,
+        headers: {
+          ...init.headers,
+          ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
+          ...extraHeaders,
+        },
+        signal: AbortSignal.timeout(30_000),
+      })
+      if (!response.ok) {
+        return { ok: false, status: response.status, message: `backend answered ${String(response.status)}` }
+      }
+      return { ok: true, response }
+    } catch (error) {
+      return { ok: false, status: 502, message: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  /**
    * Ask the backend to list a provider's models with the given credential.
    * @param provider - provider name from the backend whitelist.
    * @param apiKey - optional key overriding the stored one for the probe.

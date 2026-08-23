@@ -1,11 +1,13 @@
 /**
  * Unified Voice Selector Component for VoiceSpirit
- * Provides rich card grid, gender/tag filters, search, and human-readable timbre labels.
+ * Provides rich card grid, gender/tag filters, search, human-readable timbre labels,
+ * and one-click voice sample preview playback.
  */
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   getProviderVoices,
+  type VoiceCatalogEntry,
   type VoiceGender,
 } from '../contract/voice-catalog.ts'
 import styles from './VoiceCall.module.css'
@@ -28,11 +30,30 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
   const [filterGender, setFilterGender] = useState<VoiceGender | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [showCustom, setShowCustom] = useState(false)
+  const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null)
 
-  // Reset filter & search when provider changes
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  const stopPreview = () => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      audioRef.current = null
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+    }
+    setPreviewingVoiceId(null)
+  }
+
+  // Reset filter, search & stop preview when provider changes or unmounts
   useEffect(() => {
     setSearchQuery('')
     setFilterGender('all')
+    stopPreview()
+    return () => {
+      stopPreview()
+    }
   }, [provider])
 
   const catalog = useMemo(() => getProviderVoices(provider), [provider])
@@ -57,6 +78,83 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
   )
 
   const isCustomSelected = !currentVoiceObj && selectedVoice !== ''
+
+  const handleTogglePreview = (voice: VoiceCatalogEntry, e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+
+    if (previewingVoiceId === voice.id) {
+      stopPreview()
+      return
+    }
+
+    stopPreview()
+    setPreviewingVoiceId(voice.id)
+
+    const isEn = voice.language.startsWith('en')
+    const sampleText = isEn
+      ? `Hello! I am ${voice.displayName}, nice to meet you.`
+      : `您好，我是 ${voice.displayName}，很高兴为您服务。`
+
+    // Determine backend TTS engine
+    let engine = 'edge'
+    const normProvider = provider.toLowerCase()
+    if (normProvider.includes('dashscope')) {
+      engine = 'qwen_flash'
+    } else if (normProvider.includes('cartesia')) {
+      engine = 'cartesia'
+    } else if (normProvider.includes('doubao')) {
+      engine = 'doubao'
+    } else if (normProvider.includes('openai')) {
+      engine = 'openai'
+    } else if (normProvider.includes('xiaomi')) {
+      engine = 'xiaomi'
+    }
+
+    const ttsUrl = `/api/voicespirit/tts/speak?text=${encodeURIComponent(sampleText)}&voice=${encodeURIComponent(voice.id)}&engine=${encodeURIComponent(engine)}`
+
+    const audio = new Audio(ttsUrl)
+    audioRef.current = audio
+
+    audio.onended = () => {
+      setPreviewingVoiceId(null)
+      audioRef.current = null
+    }
+
+    audio.onerror = () => {
+      // Fallback to browser SpeechSynthesis if backend is offline/unreachable
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(sampleText)
+        utterance.lang = isEn ? 'en-US' : 'zh-CN'
+        utterance.onend = () => {
+          setPreviewingVoiceId(null)
+        }
+        utterance.onerror = () => {
+          setPreviewingVoiceId(null)
+        }
+        window.speechSynthesis.speak(utterance)
+      } else {
+        setPreviewingVoiceId(null)
+      }
+    }
+
+    audio.play().catch(() => {
+      // Browser autoplay policy or load error fallback
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(sampleText)
+        utterance.lang = isEn ? 'en-US' : 'zh-CN'
+        utterance.onend = () => {
+          setPreviewingVoiceId(null)
+        }
+        utterance.onerror = () => {
+          setPreviewingVoiceId(null)
+        }
+        window.speechSynthesis.speak(utterance)
+      } else {
+        setPreviewingVoiceId(null)
+      }
+    })
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
@@ -125,6 +223,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
       >
         {filteredVoices.map((voice) => {
           const isSelected = voice.id === selectedVoice
+          const isPreviewing = previewingVoiceId === voice.id
           const isFemale = voice.gender === 'female'
           const isMale = voice.gender === 'male'
           const genderColor = isFemale ? '#ec4899' : isMale ? '#38bdf8' : '#9ca3af'
@@ -156,9 +255,9 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                 boxShadow: isSelected ? '0 0 0 1px var(--dsw-alias-state-business-primary, #3b82f6)' : 'none',
               }}
             >
-              {/* Header: Name + Gender badge + Selection Checkmark */}
+              {/* Header: Name + Gender badge + Preview Button + Checkmark */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, flex: 1 }}>
                   <span
                     style={{
                       fontSize: '10px',
@@ -168,6 +267,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                       color: genderColor,
                       fontWeight: 600,
                       lineHeight: 1,
+                      flexShrink: 0,
                     }}
                   >
                     {isFemale ? '♀' : isMale ? '♂' : '⚲'}
@@ -184,12 +284,36 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                   >
                     {voice.displayName}
                   </span>
+                  {isSelected && (
+                    <span style={{ fontSize: '11px', color: 'var(--dsw-alias-state-business-primary, #3b82f6)', fontWeight: 700, flexShrink: 0 }}>
+                      ✓
+                    </span>
+                  )}
                 </div>
-                {isSelected && (
-                  <span style={{ fontSize: '11px', color: 'var(--dsw-alias-state-business-primary, #3b82f6)', fontWeight: 700 }}>
-                    ✓
-                  </span>
-                )}
+
+                {/* Audio Sample Preview Button */}
+                <button
+                  type="button"
+                  className={`${styles.voicePreviewBtn} ${isPreviewing ? styles.voicePreviewBtnActive : ''}`}
+                  onClick={(e) => { handleTogglePreview(voice, e) }}
+                  title={isPreviewing ? '停止试听' : '试听该音色'}
+                >
+                  {isPreviewing ? (
+                    <>
+                      <span className={styles.previewPlayingBars}>
+                        <span className={styles.previewPlayingBar} />
+                        <span className={styles.previewPlayingBar} />
+                        <span className={styles.previewPlayingBar} />
+                      </span>
+                      <span>停止</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>▶</span>
+                      <span>试听</span>
+                    </>
+                  )}
+                </button>
               </div>
 
               {/* Chinese readable name & vibe */}
@@ -269,3 +393,4 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
     </div>
   )
 }
+
