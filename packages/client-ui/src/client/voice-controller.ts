@@ -314,6 +314,14 @@ export class VoiceSpiritController {
     this.engine.toggleMute()
   }
 
+  startPushToTalk(): void {
+    this.engine.startPushToTalk()
+  }
+
+  stopPushToTalk(): void {
+    this.engine.stopPushToTalk()
+  }
+
   interrupt(): void {
     this.engine.interrupt()
   }
@@ -425,6 +433,9 @@ export class VoiceSpiritController {
       case 'auth': return 'errAuth'
       case 'unreachable': return 'errUnreachable'
       case 'microphone': return 'errMicrophone'
+      case 'mic_denied': return 'errMicDenied'
+      case 'mic_not_found': return 'errMicNotFound'
+      case 'mic_in_use': return 'errMicInUse'
       case 'server': return 'errServer'
       case 'unknown': return 'errUnknown'
       default: return undefined

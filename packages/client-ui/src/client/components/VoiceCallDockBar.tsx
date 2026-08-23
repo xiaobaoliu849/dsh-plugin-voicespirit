@@ -4,7 +4,7 @@
  * and compact action controls (mute, interrupt, quick settings, immersive view, hang-up).
  */
 
-import React from 'react'
+import React, { useEffect } from 'react'
 import type { VoiceSpiritController, VoiceSpiritUiState } from '../voice-controller.ts'
 import { SPECTRUM_BANDS } from '../engine/VoiceAudioEngine.ts'
 import { getLanguageDisplayBadge } from '../contract/settings.ts'
@@ -25,6 +25,50 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
 }) => {
   const { engine } = snapshot
   const isSpeaking = engine.phase === 'speaking' || snapshot.speakerLevel > 0.05
+  const isPushToTalk = Boolean(engine.isPushToTalk)
+
+  // Global voice shortcut listener when call is live:
+  // - Space (hold): Push to talk
+  // - M: Toggle mute
+  // - Enter (while AI speaking): Interrupt
+  useEffect(() => {
+    const isEditingText = (target: EventTarget | null): boolean => {
+      if (!target || !(target instanceof HTMLElement)) return false
+      const tag = target.tagName.toLowerCase()
+      return tag === 'input' || tag === 'textarea' || target.isContentEditable
+    }
+
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (isEditingText(e.target)) return
+
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault()
+        controller.startPushToTalk()
+      } else if (e.code === 'KeyM' && !e.repeat) {
+        e.preventDefault()
+        controller.toggleMute()
+      } else if (e.key === 'Enter' && !e.repeat && isSpeaking) {
+        e.preventDefault()
+        controller.interrupt()
+      }
+    }
+
+    const onKeyUp = (e: KeyboardEvent): void => {
+      if (e.code === 'Space') {
+        if (!isEditingText(e.target)) {
+          e.preventDefault()
+        }
+        controller.stopPushToTalk()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+    }
+  }, [controller, isSpeaking])
 
   // Real log-spaced spectrum from the engine — one bar per band. Flat stubs
   // until the first sample lands; the analyser's smoothing keeps motion fluid.
@@ -58,7 +102,13 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
         ? `${t('userSpeaking')}: ${snapshot.userText}`
         : undefined)
 
-  const fallbackStatusText = engine.phase === 'connecting' || snapshot.launching
+  const reconnectingText = engine.reconnectAttempt
+    ? `${t('statusReconnecting')} (${engine.reconnectAttempt}/3)…`
+    : `${t('statusReconnecting')}…`
+
+  const fallbackStatusText = engine.phase === 'reconnecting'
+    ? reconnectingText
+    : engine.phase === 'connecting' || snapshot.launching
     ? t('statusConnecting')
     : engine.phase === 'interrupted'
     ? t('statusInterrupted')
@@ -73,12 +123,14 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
   const displayText = currentTranscript || fallbackStatusText
 
   return (
-    <div className={styles.vsDockRibbon}>
+    <div className={`${styles.vsDockRibbon} ${isPushToTalk ? styles.dockPushToTalkActive : ''}`}>
       {/* 1. Left Cluster: Status dot, Waveform, Mode toggle & Language Pill */}
       <div className={styles.vsDockLeft}>
         <span
           className={`${styles.statusDot} ${
-            engine.phase === 'connecting' || snapshot.launching
+            engine.phase === 'reconnecting'
+              ? styles.dotReconnecting
+              : engine.phase === 'connecting' || snapshot.launching
               ? styles.dotConnecting
               : engine.phase === 'interrupted'
               ? styles.dotInterrupted
@@ -104,6 +156,13 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
             />
           ))}
         </div>
+
+        {/* Push-to-Talk active indicator */}
+        {isPushToTalk && (
+          <span className={styles.pttTag}>
+            🎙️ {t('pushToTalkActive')}
+          </span>
+        )}
 
         {/* Mode Switcher Capsule */}
         <div className={styles.modeSegmentControl}>
@@ -183,12 +242,18 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
 
       {/* 3. Right Cluster: Controls */}
       <div className={styles.vsDockRight}>
-        {/* Mute Button */}
+        {/* Space Push-to-Talk Hint */}
+        <span className={styles.kbdHint} title={t('shortcutPushToTalk')}>
+          <kbd className={styles.kbdBadge}>Space</kbd>
+          <span style={{ fontSize: 10 }}>{t('pushToTalk')}</span>
+        </span>
+
+        {/* Mute Button with [M] shortcut */}
         <button
           type="button"
           className={`${styles.actionBtn} ${engine.isMuted ? styles.actionBtnMuted : ''}`}
           onClick={() => { controller.toggleMute() }}
-          title={engine.isMuted ? t('unmute') : t('mute')}
+          title={`${engine.isMuted ? t('unmute') : t('mute')} (${t('shortcutMute')})`}
         >
           {engine.isMuted ? (
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -207,13 +272,13 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
           )}
         </button>
 
-        {/* Interrupt Button */}
+        {/* Interrupt Button with [Enter] shortcut */}
         {isSpeaking && (
           <button
             type="button"
             className={styles.actionBtn}
             onClick={() => { controller.interrupt() }}
-            title={t('interrupt')}
+            title={`${t('interrupt')} (${t('shortcutInterrupt')})`}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
