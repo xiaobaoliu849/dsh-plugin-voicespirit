@@ -461,6 +461,12 @@
   animation: pulseDot 1s infinite alternate;
 }
 
+.dotReconnecting {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.8);
+  animation: pulseDot 0.8s infinite alternate;
+}
+
 .dotListening {
   background: #10b981;
   box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);

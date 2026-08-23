@@ -106,14 +106,22 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
           <span className={styles.statusPill}>
             <span
               className={`${styles.statusDot} ${
-                engine.phase === 'connecting' || snapshot.launching
+                engine.phase === 'reconnecting'
+                  ? styles.dotReconnecting
+                  : engine.phase === 'connecting' || snapshot.launching
                   ? styles.dotConnecting
                   : isSpeaking
                   ? styles.dotSpeaking
                   : styles.dotListening
               }`}
             />
-            {isPushToTalk ? (
+            {engine.phase === 'reconnecting' ? (
+              <span style={{ color: '#f59e0b' }}>
+                {engine.reconnectAttempt
+                  ? `${t('statusReconnecting')} (${engine.reconnectAttempt}/3)…`
+                  : `${t('statusReconnecting')}…`}
+              </span>
+            ) : isPushToTalk ? (
               <span className={styles.pttTag} style={{ marginLeft: 2 }}>
                 🎙️ {t('pushToTalkActive')}
               </span>

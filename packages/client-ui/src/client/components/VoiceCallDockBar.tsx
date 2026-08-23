@@ -102,7 +102,13 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
         ? `${t('userSpeaking')}: ${snapshot.userText}`
         : undefined)
 
-  const fallbackStatusText = engine.phase === 'connecting' || snapshot.launching
+  const reconnectingText = engine.reconnectAttempt
+    ? `${t('statusReconnecting')} (${engine.reconnectAttempt}/3)…`
+    : `${t('statusReconnecting')}…`
+
+  const fallbackStatusText = engine.phase === 'reconnecting'
+    ? reconnectingText
+    : engine.phase === 'connecting' || snapshot.launching
     ? t('statusConnecting')
     : engine.phase === 'interrupted'
     ? t('statusInterrupted')
@@ -122,7 +128,9 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
       <div className={styles.vsDockLeft}>
         <span
           className={`${styles.statusDot} ${
-            engine.phase === 'connecting' || snapshot.launching
+            engine.phase === 'reconnecting'
+              ? styles.dotReconnecting
+              : engine.phase === 'connecting' || snapshot.launching
               ? styles.dotConnecting
               : engine.phase === 'interrupted'
               ? styles.dotInterrupted

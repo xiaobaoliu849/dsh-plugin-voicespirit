@@ -12,10 +12,19 @@
 
 import type { EvermemSessionConfig } from '../contract/settings.ts'
 
-export type VoiceEnginePhase = 'idle' | 'connecting' | 'listening' | 'speaking' | 'interrupted' | 'error'
+export type VoiceEnginePhase = 'idle' | 'connecting' | 'reconnecting' | 'listening' | 'speaking' | 'interrupted' | 'error'
 
 /** Stable error classes the UI translates; the raw message rides alongside. */
-export type VoiceEngineErrorCode = 'auth' | 'unreachable' | 'microphone' | 'server' | 'unknown'
+export type VoiceEngineErrorCode =
+  | 'auth'
+  | 'unreachable'
+  | 'microphone'
+  | 'mic_denied'
+  | 'mic_not_found'
+  | 'mic_in_use'
+  | 'net_timeout'
+  | 'server'
+  | 'unknown'
 
 /** Live EverMemOS state as the backend reports it over the session. */
 export interface VoiceMemoryState {
@@ -38,6 +47,7 @@ export interface VoiceEngineState {
   isConnected: boolean
   isMuted: boolean
   isPushToTalk?: boolean
+  reconnectAttempt?: number
   provider: string
   model: string
   voice: string
@@ -248,6 +258,13 @@ export class VoiceAudioEngine {
   private errorCode: VoiceEngineErrorCode = 'unknown'
   private memory: VoiceMemoryState | undefined
 
+  private reconnectAttempt: number = 0
+  private readonly maxReconnectAttempts: number = 3
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private isManuallyStopped: boolean = false
+  private pingIntervalId: number | null = null
+  private visibilityListener: (() => void) | null = null
+
   private currentUserText: string = ''
   private currentAssistantText: string = ''
   private currentTranslationText: string = ''
@@ -290,6 +307,7 @@ export class VoiceAudioEngine {
       isConnected: this.isConnected,
       isMuted: this.isMuted,
       isPushToTalk: this.isPushToTalk,
+      reconnectAttempt: this.phase === 'reconnecting' ? this.reconnectAttempt : undefined,
       provider: this.options.provider || '',
       model: this.options.model || '',
       voice: this.options.voice || '',
@@ -301,6 +319,13 @@ export class VoiceAudioEngine {
 
   public async start(): Promise<void> {
     if (this.isConnected || this.phase === 'connecting') return
+
+    this.isManuallyStopped = false
+    this.reconnectAttempt = 0
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
 
     this.setPhase('connecting')
     this.errorMessage = ''
@@ -328,11 +353,13 @@ export class VoiceAudioEngine {
 
       this.ws.onopen = () => {
         this.isConnected = true
+        this.reconnectAttempt = 0
         // Memory config rides the first client message: the backend applies it
         // to every subsequent turn (retrieval injection + turn-final writes).
         if (this.options.memory !== undefined && this.ws !== null && this.ws.readyState === WebSocket.OPEN) {
           this.ws.send(JSON.stringify({ type: 'config', memory: this.options.memory }))
         }
+        this.startPingKeepalive()
         this.setPhase('listening')
         // Start a liveness timer: if the backend accepts the socket but
         // never sends any message within 15 s, the session is silently
@@ -351,10 +378,11 @@ export class VoiceAudioEngine {
       }
 
       this.ws.onerror = () => {
-        this.fail('unreachable', 'VOICE_ENGINE_WS_ERROR')
+        // ws.onclose takes care of reconnect/failure classification
       }
 
       this.ws.onclose = (ev) => {
+        this.stopPingKeepalive()
         const wasLive = this.isConnected
           || this.phase === 'listening'
           || this.phase === 'speaking'
@@ -378,6 +406,11 @@ export class VoiceAudioEngine {
           this.stop(false, true)
           return
         }
+        // Auto-reconnect on unexpected disconnects if the session was active
+        if (!this.isManuallyStopped && wasLive && this.reconnectAttempt < this.maxReconnectAttempts) {
+          this.scheduleReconnect()
+          return
+        }
         if (wasLive) {
           this.fail('unreachable', `close ${ev.code}`)
           this.stop(false, true)
@@ -390,10 +423,121 @@ export class VoiceAudioEngine {
 
       this.startLevelMonitor()
     } catch (err) {
-      console.error('[VoiceAudioEngine] Failed to start:', err)
-      const message = err instanceof Error ? err.message : 'microphone unavailable'
-      this.fail('microphone', message)
-      this.stop(false)
+      console.error('[VoiceAudioEngine] Failed to start audio input:', err)
+      if (err instanceof DOMException) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          this.fail('mic_denied', '麦克风权限被拒绝，请在浏览器地址栏左侧允许麦克风权限')
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          this.fail('mic_not_found', '未检测到可用麦克风硬件，请连接麦克风后重试')
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+          this.fail('mic_in_use', '麦克风被其他应用程序占用或硬件冲突，请关闭其他录音软件后重试')
+        } else {
+          this.fail('microphone', err.message || '麦克风初始化失败')
+        }
+      } else {
+        const message = err instanceof Error ? err.message : 'microphone unavailable'
+        this.fail('microphone', message)
+      }
+      this.stop(false, true)
+    }
+  }
+
+  /** Schedule exponential backoff reconnect on unexpected network drops. */
+  private scheduleReconnect(): void {
+    if (this.isManuallyStopped) return
+    this.reconnectAttempt += 1
+    this.setPhase('reconnecting')
+    this.clearAudioPlayback()
+    this.stopPingKeepalive()
+    if (this.ws) {
+      try { this.ws.close() } catch {}
+      this.ws = null
+    }
+    this.isConnected = false
+
+    const backoffMs = Math.min(1000 * Math.pow(2, this.reconnectAttempt - 1), 4000)
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer)
+    }
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      if (this.phase === 'reconnecting' && !this.isManuallyStopped) {
+        this.reconnect().catch((err) => {
+          console.warn('[VoiceAudioEngine] Reconnect failed:', err)
+          if (this.reconnectAttempt >= this.maxReconnectAttempts) {
+            this.fail('unreachable', '多次重连失败，请检查网络或后端服务')
+            this.stop(false, true)
+          } else {
+            this.scheduleReconnect()
+          }
+        })
+      }
+    }, backoffMs)
+  }
+
+  private async reconnect(): Promise<void> {
+    if (this.isManuallyStopped) return
+    if (!this.audioCtx || this.audioCtx.state === 'closed') {
+      await this.initAudioInput()
+    }
+    const wsUrl = this.buildWsUrl()
+    this.ws = new WebSocket(wsUrl)
+    this.ws.binaryType = 'arraybuffer'
+
+    this.ws.onopen = () => {
+      this.isConnected = true
+      this.reconnectAttempt = 0
+      if (this.options.memory !== undefined && this.ws !== null && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'config', memory: this.options.memory }))
+      }
+      this.startPingKeepalive()
+      this.setPhase('listening')
+    }
+
+    this.ws.onmessage = (event) => {
+      this.handleWsMessage(event.data)
+    }
+
+    this.ws.onerror = () => {
+      // Handled by onclose
+    }
+
+    this.ws.onclose = (ev) => {
+      this.stopPingKeepalive()
+      if (this.serverErrorMessage !== undefined) {
+        this.fail('server', this.serverErrorMessage)
+        this.stop(false, true)
+        return
+      }
+      if (ev.code === 1008) {
+        this.fail('auth', `close ${ev.code}`)
+        this.stop(false, true)
+        return
+      }
+      if (!this.isManuallyStopped && this.reconnectAttempt < this.maxReconnectAttempts) {
+        this.scheduleReconnect()
+      } else {
+        this.fail('unreachable', `reconnect close ${ev.code}`)
+        this.stop(false, true)
+      }
+    }
+  }
+
+  private startPingKeepalive(): void {
+    this.stopPingKeepalive()
+    this.pingIntervalId = window.setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        try {
+          this.ws.send(JSON.stringify({ type: 'ping' }))
+        } catch {}
+      }
+    }, 25_000)
+  }
+
+  private stopPingKeepalive(): void {
+    if (this.pingIntervalId !== null) {
+      clearInterval(this.pingIntervalId)
+      this.pingIntervalId = null
     }
   }
 
@@ -403,6 +547,12 @@ export class VoiceAudioEngine {
    * @param keepError - keep the error phase (and its message) visible after teardown.
    */
   public stop(sendClose: boolean = true, keepError: boolean = false): void {
+    this.isManuallyStopped = true
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    this.stopPingKeepalive()
     if (this.aliveTimer !== null) {
       clearTimeout(this.aliveTimer)
       this.aliveTimer = null
@@ -450,6 +600,7 @@ export class VoiceAudioEngine {
     this.isConnected = false
     this.isPushToTalk = false
     this.wasMutedBeforePushToTalk = false
+    this.reconnectAttempt = 0
     if (keepError && this.phase === 'error') {
       this.notifyState()
       return
@@ -904,6 +1055,8 @@ export class VoiceAudioEngine {
       edges.push(Math.round(minBin * Math.pow(maxBin / minBin, i / SPECTRUM_BANDS)))
     }
 
+    const intervalMs = typeof document !== 'undefined' && document.hidden ? 250 : 60
+
     this.levelIntervalId = window.setInterval(() => {
       let micVol = 0
       let spkVol = 0
@@ -927,13 +1080,29 @@ export class VoiceAudioEngine {
       }
 
       this.options.onLevelsChange?.(micVol, spkVol, micBands, spkBands)
-    }, 60)
+    }, intervalMs)
+
+    // Dynamically adjust polling frequency on tab visibility change to conserve CPU
+    if (typeof document !== 'undefined' && this.visibilityListener === null) {
+      this.visibilityListener = () => {
+        if (this.levelIntervalId !== null) {
+          clearInterval(this.levelIntervalId)
+          this.levelIntervalId = null
+          this.startLevelMonitor()
+        }
+      }
+      document.addEventListener('visibilitychange', this.visibilityListener)
+    }
   }
 
   private stopLevelMonitor(): void {
     if (this.levelIntervalId !== null) {
       clearInterval(this.levelIntervalId)
       this.levelIntervalId = null
+    }
+    if (typeof document !== 'undefined' && this.visibilityListener !== null) {
+      document.removeEventListener('visibilitychange', this.visibilityListener)
+      this.visibilityListener = null
     }
     this.options.onLevelsChange?.(0, 0, new Array<number>(SPECTRUM_BANDS).fill(0), new Array<number>(SPECTRUM_BANDS).fill(0))
   }
