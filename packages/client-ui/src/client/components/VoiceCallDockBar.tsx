@@ -7,6 +7,7 @@
 import React from 'react'
 import type { VoiceSpiritController, VoiceSpiritUiState } from '../voice-controller.ts'
 import { SPECTRUM_BANDS } from '../engine/VoiceAudioEngine.ts'
+import { getLanguageDisplayBadge } from '../contract/settings.ts'
 import type { VoiceSpiritKey } from '../locales.ts'
 import { VoiceSettingsPopover } from './VoiceSettingsPopover.tsx'
 import styles from './VoiceCall.module.css'
@@ -133,7 +134,7 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
             onClick={() => { void controller.swapLanguages() }}
             title={t('swapLanguages')}
           >
-            <span>{snapshot.sourceLanguage.startsWith('zh') ? '🇨🇳 中' : snapshot.sourceLanguage.toUpperCase()}</span>
+            <span>{getLanguageDisplayBadge(snapshot.sourceLanguage)}</span>
             <button
               type="button"
               className={styles.langSwapBtn}
@@ -145,7 +146,7 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
             >
               ⇄
             </button>
-            <span>{snapshot.targetLanguage.startsWith('en') ? '🇺🇸 英' : snapshot.targetLanguage.toUpperCase()}</span>
+            <span>{getLanguageDisplayBadge(snapshot.targetLanguage)}</span>
           </div>
         ) : (
           providerLabel && (

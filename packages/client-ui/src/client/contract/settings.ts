@@ -81,6 +81,26 @@ export function isLiveTranslateModel(provider: string, model: string): boolean {
   return false
 }
 
+export function getLanguageDisplayBadge(code: string): string {
+  if (!code) return ''
+  if (code.startsWith('zh')) return '🇨🇳 中'
+  if (code === 'en') return '🇺🇸 英'
+  if (code === 'ja') return '🇯🇵 日'
+  if (code === 'ko') return '🇰🇷 韩'
+  if (code === 'fr') return '🇫🇷 法'
+  if (code === 'de') return '🇩🇪 德'
+  if (code === 'es') return '🇪🇸 西'
+  if (code === 'ru') return '🇷🇺 俄'
+  if (code === 'it') return '🇮🇹 意'
+  if (code.startsWith('pt')) return '🇧🇷 葡'
+  if (code === 'ar') return '🇸🇦 阿'
+  if (code === 'th') return '🇹🇭 泰'
+  if (code === 'vi') return '🇻🇳 越'
+  if (code === 'id') return '🇮🇩 印'
+  const item = LIVE_TRANSLATE_TARGET_LANGUAGES.find(l => l.value === code)
+  return item ? `${item.flag} ${item.labelZh.slice(0, 2)}` : code.toUpperCase()
+}
+
 /** One credential field a provider needs in the backend config document. */
 export interface ProviderCredentialField {
   /** Dotted path inside the backend settings document (e.g. `api_keys.dashscope_api_key`). */

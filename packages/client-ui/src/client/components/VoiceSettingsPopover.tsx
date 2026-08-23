@@ -214,6 +214,40 @@ export const VoiceSettingsPopover: React.FC<VoiceSettingsPopoverProps> = ({
               {/* LiveTranslate Language Pair Settings (shown in Translate mode) */}
               {snapshot.activeVoiceMode === 'translate' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px', background: 'rgba(59,130,246,0.06)', borderRadius: '8px', border: '1px solid rgba(59,130,246,0.15)' }}>
+                  {/* Hint card */}
+                  <div className={styles.translationHintCard}>
+                    ✨ 自动识别输入语言（70+ 种）· 输出自动复刻说话人音色并流式同传
+                  </div>
+
+                  {/* Preset Target Language Pills */}
+                  <div>
+                    <span className={styles.popoverLabel} style={{ fontSize: '11px' }}>常用目标语</span>
+                    <div className={styles.presetPillsGroup}>
+                      {[
+                        { label: '英语', code: 'en' },
+                        { label: '日语', code: 'ja' },
+                        { label: '韩语', code: 'ko' },
+                        { label: '法语', code: 'fr' },
+                        { label: '德语', code: 'de' },
+                        { label: '西班牙语', code: 'es' },
+                        { label: '中文', code: 'zh-Hans' },
+                      ].map((item) => {
+                        const active = snapshot.targetLanguage === item.code
+                        return (
+                          <button
+                            key={`preset_${item.code}`}
+                            type="button"
+                            className={`${styles.presetPillBtn} ${active ? styles.presetPillBtnActive : ''}`}
+                            onClick={() => { void controller.setLanguagePair(snapshot.sourceLanguage, item.code) }}
+                          >
+                            {item.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Language pair selectors */}
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '3px' }}>
                       <span className={styles.popoverLabel} style={{ fontSize: '11px' }}>{t('sourceLanguage')}</span>
