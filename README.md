@@ -86,7 +86,7 @@ Everything is configured in the web UI:
 - **Settings → Plugins → VoiceSpirit** (full card):
   - 后端服务 — backend directory, Python path, port, data directory, auto-start, start/stop, log tail.
   - 语音服务商 — provider, model (with "fetch models" from the backend), voice.
-  - 服务商密钥 — the selected provider's credential fields (e.g. DashScope API key + realtime WebSocket URL, Doubao token + app id, Cartesia + DeepSeek keys). Saved into the backend's own config document through the harness proxy.
+  - 服务商密钥 — the selected provider's credential fields (e.g. DashScope API key + realtime WebSocket URL, Doubao API key + realtime WebSocket URL, Cartesia + DeepSeek keys). Saved into the backend's own config document through the harness proxy.
 - **Call dock quick settings** (gear icon while calling): one-click provider/model/voice switch and backend status.
 
 ### Data directories

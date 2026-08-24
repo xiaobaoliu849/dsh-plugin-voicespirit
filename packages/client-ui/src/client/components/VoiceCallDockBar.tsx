@@ -6,10 +6,10 @@
 
 import React, { useEffect } from 'react'
 import type { VoiceSpiritController, VoiceSpiritUiState } from '../voice-controller.ts'
-import { SPECTRUM_BANDS } from '../engine/VoiceAudioEngine.ts'
 import { getLanguageDisplayBadge } from '../contract/settings.ts'
 import type { VoiceSpiritKey } from '../locales.ts'
 import { VoiceSettingsPopover } from './VoiceSettingsPopover.tsx'
+import { VoiceWaveformCanvas } from './VoiceWaveformCanvas.tsx'
 import styles from './VoiceCall.module.css'
 
 export interface VoiceCallDockBarProps {
@@ -69,13 +69,6 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
       window.removeEventListener('keyup', onKeyUp)
     }
   }, [controller, isSpeaking])
-
-  // Real log-spaced spectrum from the engine — one bar per band. Flat stubs
-  // until the first sample lands; the analyser's smoothing keeps motion fluid.
-  const bands = isSpeaking ? snapshot.spkBands : snapshot.micBands
-  const waveHeights: number[] = bands.length === SPECTRUM_BANDS
-    ? bands.map((v) => 3 + Math.min(18, v * 48))
-    : new Array<number>(SPECTRUM_BANDS).fill(3)
 
   const providerLabel = [engine.provider, engine.voice]
     .filter(part => part !== '')
@@ -143,18 +136,17 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
           aria-hidden="true"
         />
 
-        {/* Dynamic Waveform */}
+        {/* Dynamic 60FPS Canvas Waveform */}
         <div
           className={styles.vsWaveform}
           title={isSpeaking ? t('statusSpeaking') : t('statusListening')}
         >
-          {waveHeights.map((h, i) => (
-            <div
-              key={i}
-              className={`${styles.vsWaveBar} ${isSpeaking ? styles.vsWaveBarAI : styles.vsWaveBarMic}`}
-              style={{ height: `${h}px` }}
-            />
-          ))}
+          <VoiceWaveformCanvas
+            controller={controller}
+            isSpeaking={isSpeaking}
+            width={64}
+            height={18}
+          />
         </div>
 
         {/* Push-to-Talk active indicator */}

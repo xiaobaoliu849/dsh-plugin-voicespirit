@@ -67,6 +67,8 @@ export interface VoiceCallOptions {
   sourceLanguage?: string | undefined
   targetLanguage?: string | undefined
   echoTargetLanguage?: boolean | undefined
+  /** Whether client-side energy VAD gating is enabled (default: true) */
+  vadEnabled?: boolean | undefined
   /** EverMemOS payload sent in the session `config` message; undefined = memory off. */
   memory?: EvermemSessionConfig | undefined
   onStateChange?: ((state: VoiceEngineState) => void) | undefined
@@ -235,18 +237,152 @@ export function mergeAssistantText(previous: string, incoming: string): string {
   return appendStreamingText(previous, next)
 }
 
+/**
+ * AudioWorkletProcessor script executed on the audio rendering thread.
+ * Downsamples input stream to 16kHz Int16 PCM, computes RMS energy, tracks
+ * dynamic noise floor, and applies adaptive VAD gating with hangover holdoff.
+ */
+const AUDIO_WORKLET_PROCESSOR_CODE = `
+class VoiceAudioProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super()
+    this.inputSampleRate = 48000
+    this.targetSampleRate = 16000
+    this.isMuted = false
+    this.vadEnabled = true
+    this.buffer = []
+    this.noiseFloor = 0.005
+    this.minThreshold = 0.012
+    this.hangoverFrames = 0
+    this.hangoverMaxFrames = 12 // ~380ms at 512 samples per frame (32ms per frame)
+    this.silenceHeartbeatCounter = 0
+    this.silenceHeartbeatInterval = 45 // ~1.5s comfort heartbeat
+
+    this.port.onmessage = (event) => {
+      const data = event.data
+      if (!data) return
+      if (data.type === 'set_muted') {
+        this.isMuted = Boolean(data.muted)
+      } else if (data.type === 'set_vad') {
+        this.vadEnabled = data.enabled !== false
+        if (typeof data.minThreshold === 'number') {
+          this.minThreshold = data.minThreshold
+        }
+      } else if (data.type === 'init') {
+        this.inputSampleRate = data.inputSampleRate || 48000
+        this.targetSampleRate = data.targetSampleRate || 16000
+      }
+    }
+  }
+
+  process(inputs, outputs, parameters) {
+    const input = inputs[0]
+    if (!input || !input[0] || input[0].length === 0) return true
+    if (this.isMuted) return true
+
+    const channelData = input[0]
+    for (let i = 0; i < channelData.length; i++) {
+      this.buffer.push(channelData[i])
+    }
+
+    const ratio = this.inputSampleRate / this.targetSampleRate
+    const targetChunkSize = 512
+    const requiredInputSamples = Math.round(targetChunkSize * ratio)
+
+    while (this.buffer.length >= requiredInputSamples) {
+      const chunk = this.buffer.splice(0, requiredInputSamples)
+      const pcm16 = this.downsampleAndQuantize(chunk, this.inputSampleRate, this.targetSampleRate)
+      if (pcm16.length > 0) {
+        this.handleChunk(pcm16)
+      }
+    }
+
+    return true
+  }
+
+  downsampleAndQuantize(buffer, fromRate, toRate) {
+    const ratio = fromRate / toRate
+    const newLength = Math.round(buffer.length / ratio)
+    const result = new Int16Array(newLength)
+    let offsetResult = 0
+    let offsetBuffer = 0
+
+    while (offsetResult < result.length) {
+      const nextOffsetBuffer = Math.round((offsetResult + 1) * ratio)
+      let accum = 0
+      let count = 0
+      for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+        accum += buffer[i] || 0
+        count++
+      }
+      const val = count > 0 ? accum / count : 0
+      const s = Math.max(-1, Math.min(1, val))
+      result[offsetResult] = s < 0 ? s * 0x8000 : s * 0x7fff
+      offsetResult++
+      offsetBuffer = nextOffsetBuffer
+    }
+    return result
+  }
+
+  handleChunk(pcm16) {
+    let sumSquares = 0
+    for (let i = 0; i < pcm16.length; i++) {
+      const norm = pcm16[i] / 32768
+      sumSquares += norm * norm
+    }
+    const rms = Math.sqrt(sumSquares / pcm16.length)
+
+    this.noiseFloor = this.noiseFloor * 0.98 + rms * 0.02
+    const dynamicThreshold = Math.max(this.minThreshold, this.noiseFloor * 2.2)
+
+    const isVoice = rms > dynamicThreshold
+    if (isVoice) {
+      this.hangoverFrames = this.hangoverMaxFrames
+    } else if (this.hangoverFrames > 0) {
+      this.hangoverFrames--
+    }
+
+    const shouldSend = !this.vadEnabled || isVoice || this.hangoverFrames > 0
+
+    if (shouldSend) {
+      this.silenceHeartbeatCounter = 0
+      this.port.postMessage({
+        type: 'pcm',
+        pcm: pcm16.buffer,
+        rms: rms,
+        isVoice: isVoice
+      }, [pcm16.buffer])
+    } else {
+      this.silenceHeartbeatCounter++
+      if (this.silenceHeartbeatCounter >= this.silenceHeartbeatInterval) {
+        this.silenceHeartbeatCounter = 0
+        this.port.postMessage({
+          type: 'pcm',
+          pcm: pcm16.buffer,
+          rms: rms,
+          isVoice: false
+        }, [pcm16.buffer])
+      }
+    }
+  }
+}
+registerProcessor('voicespirit-audio-processor', VoiceAudioProcessor)
+`
+
 export class VoiceAudioEngine {
   private options: VoiceCallOptions
   private audioCtx: AudioContext | null = null
-  private micStream: MediaStream | null = null
   private micSource: MediaStreamAudioSourceNode | null = null
   private micGain: GainNode | null = null
   private micAnalyser: AnalyserNode | null = null
+  private micWorkletNode: AudioWorkletNode | null = null
   private micProcessor: ScriptProcessorNode | null = null
   private micSink: GainNode | null = null
   private mediaStream: MediaStream | null = null
   private speakerGain: GainNode | null = null
   private speakerAnalyser: AnalyserNode | null = null
+  private workletBlobUrl: string | null = null
+  private deviceChangeListener: (() => void) | null = null
 
   private ws: WebSocket | null = null
   private isMuted: boolean = false
@@ -257,6 +393,11 @@ export class VoiceAudioEngine {
   private errorMessage: string = ''
   private errorCode: VoiceEngineErrorCode = 'unknown'
   private memory: VoiceMemoryState | undefined
+
+  // VAD state for ScriptProcessor fallback
+  private fallbackNoiseFloor = 0.005
+  private fallbackHangoverFrames = 0
+  private fallbackSilenceHeartbeatCounter = 0
 
   private reconnectAttempt: number = 0
   private readonly maxReconnectAttempts: number = 3
@@ -294,6 +435,12 @@ export class VoiceAudioEngine {
 
   public updateOptions(newOptions: Partial<VoiceCallOptions>): void {
     this.options = { ...this.options, ...newOptions }
+    if (this.micWorkletNode && newOptions.vadEnabled !== undefined) {
+      this.micWorkletNode.port.postMessage({
+        type: 'set_vad',
+        enabled: newOptions.vadEnabled,
+      })
+    }
     this.notifyState()
   }
 
@@ -561,6 +708,19 @@ export class VoiceAudioEngine {
     this.clearAudioPlayback()
     this.commitTurnIfPending()
 
+    if (this.micWorkletNode) {
+      try {
+        this.micWorkletNode.port.close?.()
+        this.micWorkletNode.disconnect()
+      } catch {}
+      this.micWorkletNode = null
+    }
+    if (this.workletBlobUrl) {
+      try {
+        URL.revokeObjectURL(this.workletBlobUrl)
+      } catch {}
+      this.workletBlobUrl = null
+    }
     if (this.micProcessor) {
       this.micProcessor.disconnect()
       this.micProcessor = null
@@ -581,8 +741,15 @@ export class VoiceAudioEngine {
       this.mediaStream.getTracks().forEach((t) => t.stop())
       this.mediaStream = null
     }
+    if (this.deviceChangeListener && typeof navigator !== 'undefined' && navigator.mediaDevices) {
+      try {
+        navigator.mediaDevices.removeEventListener('devicechange', this.deviceChangeListener)
+      } catch {}
+      this.deviceChangeListener = null
+    }
     if (this.audioCtx && this.audioCtx.state !== 'closed') {
       try {
+        this.audioCtx.onstatechange = null
         this.audioCtx.close()
       } catch {}
       this.audioCtx = null
@@ -613,6 +780,9 @@ export class VoiceAudioEngine {
     if (this.micGain) {
       this.micGain.gain.value = this.isMuted ? 0 : 1
     }
+    if (this.micWorkletNode) {
+      this.micWorkletNode.port.postMessage({ type: 'set_muted', muted: this.isMuted })
+    }
     this.notifyState()
     return this.isMuted
   }
@@ -625,6 +795,9 @@ export class VoiceAudioEngine {
       this.isMuted = false
       if (this.micGain) {
         this.micGain.gain.value = 1
+      }
+      if (this.micWorkletNode) {
+        this.micWorkletNode.port.postMessage({ type: 'set_muted', muted: false })
       }
     }
     // If AI is speaking, interrupt to yield voice floor immediately
@@ -641,6 +814,9 @@ export class VoiceAudioEngine {
       this.isMuted = true
       if (this.micGain) {
         this.micGain.gain.value = 0
+      }
+      if (this.micWorkletNode) {
+        this.micWorkletNode.port.postMessage({ type: 'set_muted', muted: true })
       }
     }
     this.notifyState()
@@ -708,8 +884,22 @@ export class VoiceAudioEngine {
     const AudioCtx = window.AudioContext ?? webkitWindow.webkitAudioContext
     if (AudioCtx === undefined) throw new Error('Web Audio API is unavailable in this browser')
     this.audioCtx = new AudioCtx()
+
+    // Auto-resume audio context when suspended by browser autoplay policy or system sleep
     if (this.audioCtx.state === 'suspended') {
       await this.audioCtx.resume()
+    }
+    this.audioCtx.onstatechange = () => {
+      if (
+        this.audioCtx &&
+        this.audioCtx.state === 'suspended' &&
+        this.isConnected &&
+        !this.isManuallyStopped
+      ) {
+        this.audioCtx.resume().catch((err) => {
+          console.warn('[VoiceAudioEngine] Auto-resume AudioContext failed:', err)
+        })
+      }
     }
 
     this.mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -722,6 +912,18 @@ export class VoiceAudioEngine {
         voiceIsolation: true,
       },
     })
+
+    // Listen for hardware/headset route changes
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.addEventListener === 'function') {
+      this.deviceChangeListener = () => {
+        const audioTracks = this.mediaStream?.getAudioTracks() ?? []
+        const active = audioTracks.some((t) => t.readyState === 'live' && t.enabled)
+        if (!active && this.isConnected && !this.isManuallyStopped) {
+          console.warn('[VoiceAudioEngine] Audio input device disconnected or changed')
+        }
+      }
+      navigator.mediaDevices.addEventListener('devicechange', this.deviceChangeListener)
+    }
 
     this.micSource = this.audioCtx.createMediaStreamSource(this.mediaStream)
     this.micGain = this.audioCtx.createGain()
@@ -739,27 +941,99 @@ export class VoiceAudioEngine {
     this.speakerGain.connect(this.speakerAnalyser)
     this.speakerAnalyser.connect(this.audioCtx.destination)
 
-    // Setup ScriptProcessor for downsampling & streaming 16kHz PCM chunks
+    // Attempt to initialize high-performance AudioWorkletNode on dedicated thread
+    let workletSuccess = false
+    if (this.audioCtx.audioWorklet) {
+      try {
+        if (!this.workletBlobUrl) {
+          const blob = new Blob([AUDIO_WORKLET_PROCESSOR_CODE], { type: 'application/javascript' })
+          this.workletBlobUrl = URL.createObjectURL(blob)
+        }
+        await this.audioCtx.audioWorklet.addModule(this.workletBlobUrl)
+        this.micWorkletNode = new AudioWorkletNode(this.audioCtx, 'voicespirit-audio-processor')
+        this.micWorkletNode.port.postMessage({
+          type: 'init',
+          inputSampleRate: this.audioCtx.sampleRate,
+          targetSampleRate: 16000,
+        })
+        this.micWorkletNode.port.postMessage({
+          type: 'set_vad',
+          enabled: this.options.vadEnabled !== false,
+        })
+        this.micWorkletNode.port.onmessage = (event) => {
+          const data = event.data
+          if (data && data.type === 'pcm' && data.pcm) {
+            if (this.isConnected && !this.isMuted && this.ws && this.ws.readyState === WebSocket.OPEN) {
+              this.ws.send(data.pcm)
+            }
+          }
+        }
+        this.micGain.connect(this.micWorkletNode)
+        workletSuccess = true
+      } catch (workletErr) {
+        console.warn('[VoiceAudioEngine] AudioWorklet init failed, falling back to ScriptProcessorNode:', workletErr)
+        workletSuccess = false
+      }
+    }
+
+    // Fallback to ScriptProcessorNode if AudioWorklet is unsupported or blocked
+    if (!workletSuccess) {
+      this.initScriptProcessorFallback()
+    }
+  }
+
+  private initScriptProcessorFallback(): void {
+    if (!this.audioCtx || !this.micGain) return
     const bufferSize = 4096
     this.micProcessor = this.audioCtx.createScriptProcessor(bufferSize, 1, 1)
     const inputSampleRate = this.audioCtx.sampleRate
     const targetSampleRate = 16000
+    const vadEnabled = this.options.vadEnabled !== false
+    const hangoverMaxFrames = 3 // ~380ms at 4096 samples (85ms per frame)
+    const silenceHeartbeatInterval = 18 // ~1.5s
+
+    this.fallbackNoiseFloor = 0.005
+    this.fallbackHangoverFrames = 0
+    this.fallbackSilenceHeartbeatCounter = 0
 
     this.micProcessor.onaudioprocess = (e) => {
       if (!this.isConnected || this.isMuted) return
       const inputData = e.inputBuffer.getChannelData(0)
       const pcm16 = this.downsampleTo16k(inputData, inputSampleRate, targetSampleRate)
-      if (pcm16.length > 0 && this.ws && this.ws.readyState === WebSocket.OPEN) {
-        // Send raw binary PCM 16-bit 16kHz audio frame directly to backend.
-        // The buffer is freshly allocated above, so it is a plain ArrayBuffer.
+      if (pcm16.length === 0 || !this.ws || this.ws.readyState !== WebSocket.OPEN) return
+
+      // Compute RMS energy
+      let sumSquares = 0
+      for (let i = 0; i < pcm16.length; i++) {
+        const norm = (pcm16[i] ?? 0) / 32768
+        sumSquares += norm * norm
+      }
+      const rms = Math.sqrt(sumSquares / pcm16.length)
+
+      this.fallbackNoiseFloor = this.fallbackNoiseFloor * 0.98 + rms * 0.02
+      const dynamicThreshold = Math.max(0.012, this.fallbackNoiseFloor * 2.2)
+
+      const isVoice = rms > dynamicThreshold
+      if (isVoice) {
+        this.fallbackHangoverFrames = hangoverMaxFrames
+      } else if (this.fallbackHangoverFrames > 0) {
+        this.fallbackHangoverFrames--
+      }
+
+      const shouldSend = !vadEnabled || isVoice || this.fallbackHangoverFrames > 0
+      if (shouldSend) {
+        this.fallbackSilenceHeartbeatCounter = 0
         this.ws.send(pcm16.buffer as ArrayBuffer)
+      } else {
+        this.fallbackSilenceHeartbeatCounter++
+        if (this.fallbackSilenceHeartbeatCounter >= silenceHeartbeatInterval) {
+          this.fallbackSilenceHeartbeatCounter = 0
+          this.ws.send(pcm16.buffer as ArrayBuffer)
+        }
       }
     }
 
     this.micGain.connect(this.micProcessor)
-    // ScriptProcessorNode only runs when wired into the destination graph, but
-    // a direct connection would play the microphone back out loud. A zero-gain
-    // sink keeps the graph alive without monitoring the input.
     this.micSink = this.audioCtx.createGain()
     this.micSink.gain.value = 0
     this.micProcessor.connect(this.micSink)

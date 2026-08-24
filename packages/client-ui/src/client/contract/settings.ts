@@ -146,17 +146,17 @@ const dashScopeCredentials: ProviderCredentialField[] = [
 
 const doubaoCredentials: ProviderCredentialField[] = [
   {
-    // Realtime dialogue reads dedicated access token in api_keys or root;
-    // api_keys.doubao_api_key remains legacy fallback.
+    // Realtime dialogue uses API Key from new console (X-Api-Key header).
+    // Stored in api_keys.doubao_access_token or doubao_api_key.
     path: 'api_keys.doubao_access_token',
     labelKey: 'credDoubaoAccessToken',
     placeholderKey: 'credDoubaoAccessTokenHint',
     secret: true,
   },
   {
-    path: 'api_keys.doubao_app_id',
-    labelKey: 'credDoubaoAppId',
-    placeholderKey: 'credDoubaoAppIdHint',
+    path: 'realtime_api_urls.Doubao',
+    labelKey: 'credDoubaoRealtimeUrl',
+    placeholderKey: 'credDoubaoRealtimeUrlHint',
     secret: false,
   },
 ]
@@ -226,12 +226,15 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
   {
     id: 'Doubao',
     labelKey: 'providerDoubao',
-    models: ['doubao-realtime-dialogue'],
+    models: ['doubao-realtime', 'doubao-realtime-dialogue'],
     voices: [
       'zh_female_vv_jupiter_bigtts',
-      'zh_female_cancan_mars_bigtts',
-      'zh_male_rouwanwan_mars_bigtts',
-      'zh_female_rouse_jupiter_bigtts',
+      'zh_female_xiaohe_jupiter_bigtts',
+      'zh_male_yunzhou_jupiter_bigtts',
+      'zh_male_xiaotian_jupiter_bigtts',
+      'en_male_tim_uranus_bigtts',
+      'en_female_dacey_uranus_bigtts',
+      'en_female_stokie_uranus_bigtts',
     ],
     credentials: doubaoCredentials,
     hintKey: 'hintDoubao',
@@ -343,6 +346,11 @@ export function readBackendPath(document: BackendSettingsDocument | undefined, p
     if (typeof apiKeys.doubao_app_id === 'string' && apiKeys.doubao_app_id) return apiKeys.doubao_app_id
     if (typeof settings.doubao_app_id === 'string' && settings.doubao_app_id) return settings.doubao_app_id
     if (typeof root.doubao_app_id === 'string' && root.doubao_app_id) return root.doubao_app_id
+  }
+  if (path === 'realtime_api_urls.Doubao' || path === 'realtime_api_urls_doubao') {
+    const urls = ((settings.realtime_api_urls ?? root.realtime_api_urls ?? {}) as Record<string, unknown>)
+    if (typeof urls.Doubao === 'string' && urls.Doubao) return urls.Doubao
+    if (typeof urls.doubao === 'string' && urls.doubao) return urls.doubao
   }
   if (path === 'api_keys.dashscope_api_key' || path === 'dashscope_api_key') {
     if (typeof apiKeys.dashscope_api_key === 'string' && apiKeys.dashscope_api_key) return apiKeys.dashscope_api_key
