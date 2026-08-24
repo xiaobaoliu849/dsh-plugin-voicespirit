@@ -9,6 +9,7 @@ import type { VoiceSpiritController, VoiceSpiritUiState } from '../voice-control
 import type { VoiceSpiritKey } from '../locales.ts'
 import { VoiceSettingsPopover } from './VoiceSettingsPopover.tsx'
 import { VoiceTextInput } from './VoiceTextInput.tsx'
+import { VoiceOrbCanvas } from './VoiceOrbCanvas.tsx'
 import styles from './VoiceCall.module.css'
 
 export interface VoiceCallImmersiveModalProps {
@@ -25,8 +26,6 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
   const { engine } = snapshot
   const isSpeaking = engine.phase === 'speaking' || snapshot.speakerLevel > 0.05
   const isPushToTalk = Boolean(engine.isPushToTalk)
-  const activeLevel = isSpeaking ? snapshot.speakerLevel : snapshot.micLevel
-  const orbScale = 1 + Math.min(0.35, activeLevel * 0.7)
 
   const backdropRef = useRef<HTMLDivElement>(null)
   const subtitlesRef = useRef<HTMLDivElement>(null)
@@ -149,20 +148,13 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
         </div>
       </div>
 
-      {/* Pulsating Fluid Audio Orb */}
+      {/* High-performance 60FPS Canvas Fluid Voice Orb */}
       <div className={styles.orbContainer}>
-        <div className={styles.orbRing} />
-        {/* Scale rides a wrapper layer: the orb's own transform is owned by
-            the rotate animation, which would override an inline scale. */}
-        <div
-          style={{
-            transform: `scale(${orbScale})`,
-            transition: 'transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            display: 'flex',
-          }}
-        >
-          <div className={`${styles.voiceOrb} ${!isSpeaking ? styles.voiceOrbListening : ''}`} />
-        </div>
+        <VoiceOrbCanvas
+          controller={controller}
+          isSpeaking={isSpeaking}
+          size={240}
+        />
       </div>
 
       {/* Live Transcript Stream */}

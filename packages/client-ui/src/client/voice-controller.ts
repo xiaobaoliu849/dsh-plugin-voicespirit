@@ -80,6 +80,14 @@ export interface VoiceLastCall {
   endedAt: number
 }
 
+/** Realtime audio levels and spectrum bands. */
+export interface VoiceAudioLevels {
+  micLevel: number
+  speakerLevel: number
+  micBands: number[]
+  spkBands: number[]
+}
+
 const HISTORY_CAP = 30
 /** Session-scoped EverMemOS conversation group; a fresh tab starts a new thread. */
 const EVERMEM_GROUP_STORAGE_KEY = 'voicespirit_evermem_voice_group'
@@ -88,6 +96,7 @@ export class VoiceSpiritController {
   private readonly engine: VoiceAudioEngine
   private readonly backendClient = new VoiceSpiritBackend()
   private readonly listeners = new Set<() => void>()
+  private readonly levelListeners = new Set<(levels: VoiceAudioLevels) => void>()
   private readonly historyTurns: VoiceTranscriptTurn[] = []
   private memorySettings: MemorySettingsView | undefined
 
@@ -113,7 +122,15 @@ export class VoiceSpiritController {
         this.speakerLevel = spk
         this.micBands = micBands
         this.spkBands = spkBands
-        this.publish()
+        if (this.levelListeners.size > 0) {
+          const levels: VoiceAudioLevels = {
+            micLevel: mic,
+            speakerLevel: spk,
+            micBands,
+            spkBands,
+          }
+          this.levelListeners.forEach((fn) => { fn(levels) })
+        }
       },
       onTranscriptChange: (userText, isUserInterim, assistantText, translationText) => {
         this.userText = userText
@@ -178,6 +195,22 @@ export class VoiceSpiritController {
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener)
     return () => { this.listeners.delete(listener) }
+  }
+
+  /** Subscribe to high-frequency 60Hz audio levels without triggering full React re-renders. */
+  subscribeLevels(listener: (levels: VoiceAudioLevels) => void): () => void {
+    this.levelListeners.add(listener)
+    return () => { this.levelListeners.delete(listener) }
+  }
+
+  /** Read the latest instantaneous audio volume and spectrum bands. */
+  getAudioLevels(): VoiceAudioLevels {
+    return {
+      micLevel: this.micLevel,
+      speakerLevel: this.speakerLevel,
+      micBands: this.micBands,
+      spkBands: this.spkBands,
+    }
   }
 
   /** The engine, for the few imperative call-site needs (text input). */
