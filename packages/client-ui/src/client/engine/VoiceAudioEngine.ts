@@ -105,6 +105,8 @@ interface VoiceServerEvent {
   turn_id?: string
   interrupted?: boolean
   message?: string
+  /** Backend marks cumulative snapshots / final canonical text; absence = verbatim delta. */
+  cumulative?: boolean
   // memory_config / memory_context / memory_write payloads
   enabled?: boolean
   scope?: string
@@ -196,6 +198,37 @@ export function appendStreamingText(previous: string, incoming: string): string 
     return `${before} ${next}`.replace(/\s+([,.!?;:])/g, '$1')
   }
   return `${before}${next}`
+}
+
+/**
+ * Append one streaming text delta to the accumulated assistant reply.
+ *
+ * Realtime providers stream sub-word (BPE) token deltas whose whitespace is
+ * authoritative: a new word arrives carrying its own leading space (" world"),
+ * while a continuation of the current word arrives without one ("ful"). The
+ * backend treats a delta stream as a verbatim concatenation (see
+ * `ai_acc + content` in realtime_doubao_provider.py), so the on-screen text
+ * must be built the same way to stay in sync with the spoken audio.
+ *
+ * Never trim a delta and never invent a separator. Trimming destroys the
+ * provider's own word-boundary signal, and re-inserting a space by script
+ * heuristic splits words that were streamed as several tokens
+ * ("wonder" + "ful" -> "wonder ful"). For the same reason there is no
+ * duplicate/overlap suppression here: an ordered WebSocket never re-delivers a
+ * delta, whereas natural language genuinely repeats fragments ("ha" + "ha").
+ *
+ * Cumulative snapshots (a provider re-sending the whole transcript so far, or
+ * a final canonical correction) are NOT deltas — route those through
+ * {@link mergeAssistantText} instead. The backend marks them with
+ * `cumulative: true` on the wire.
+ */
+export function appendAssistantDelta(previous: string, delta: string): string {
+  if (!delta) return previous
+  if (!previous) {
+    // Only the very first fragment of a turn may carry a stray leading space.
+    return delta.replace(/^\s+/, '')
+  }
+  return `${previous}${delta}`
 }
 
 export function mergeAssistantText(previous: string, incoming: string): string {
@@ -1135,7 +1168,9 @@ export class VoiceAudioEngine {
             if (msg.turn_id) {
               this.currentTurnId = msg.turn_id
             }
-            this.currentTranslationText = mergeAssistantText(this.currentTranslationText, incomingTranslation)
+            this.currentTranslationText = msg.cumulative
+              ? mergeAssistantText(this.currentTranslationText, incomingTranslation)
+              : appendAssistantDelta(this.currentTranslationText, incomingTranslation)
             this.notifyTranscript()
           }
           break
@@ -1150,7 +1185,14 @@ export class VoiceAudioEngine {
             if (msg.turn_id) {
               this.currentTurnId = msg.turn_id
             }
-            this.currentAssistantText = mergeAssistantText(this.currentAssistantText, msg.text)
+            // A cumulative event carries the whole transcript so far (or a
+            // final canonical correction) and supersedes what streamed;
+            // anything else is a verbatim delta that must be appended exactly
+            // as sent — the ASR-hypothesis merger would split BPE words
+            // (" wonder" + "ful" -> "wonder ful") and drop repeated fragments.
+            this.currentAssistantText = msg.cumulative
+              ? mergeAssistantText(this.currentAssistantText, msg.text)
+              : appendAssistantDelta(this.currentAssistantText, msg.text)
             this.notifyTranscript()
           }
           break
