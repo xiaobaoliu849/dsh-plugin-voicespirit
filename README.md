@@ -1,24 +1,24 @@
-# VoiceSpirit Plugin for DeepSeek Harness
+# Echo Plugin for DeepSeek Harness
 
 [中文文档](README.zh.md) | English
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![dsh-plugin](https://img.shields.io/badge/dsh-plugin-brightgreen.svg)](https://github.com/topics/dsh-plugin)
 
-**VoiceSpirit for DeepSeek Harness** is a realtime duplex voice interaction plugin built on top of [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/deepseek-harness) and powered by [Cordis](https://github.com/cordiverse/cordis).
+**Echo for DeepSeek Harness** is a realtime duplex voice interaction plugin built on top of [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/deepseek-harness) and powered by [Cordis](https://github.com/cordiverse/cordis). (Echo is the new product name of the VoiceSpirit backend; internal identifiers — package names, routes, settings keys — still use `voicespirit`.)
 
-It brings low-latency streaming voice conversation, intelligent VAD interruption, dynamic live waveform visualizer HUD, and multi-modal call UI experiences directly into your DeepSeek Harness Web interface — **with the harness managing the VoiceSpirit backend for you**: it spawns the backend on boot, proxies the realtime audio WebSocket (so the browser never needs CORS or a credential), and gives you a full settings card for providers, API keys, and the backend lifecycle.
+It brings low-latency streaming voice conversation, intelligent VAD interruption, dynamic live waveform visualizer HUD, and multi-modal call UI experiences directly into your DeepSeek Harness Web interface — **with the harness managing the Echo backend for you**: it spawns the backend on boot, proxies the realtime audio WebSocket (so the browser never needs CORS or a credential), and gives you a full settings card for providers, API keys, and the backend lifecycle.
 
 ---
 
 ## ✨ Features
 
-- 🚀 **Zero-touch backend lifecycle**: the harness probes `127.0.0.1:8000` on boot and spawns the VoiceSpirit FastAPI backend as a managed child process when nothing answers. Start/stop, health, and a live log tail are one click in Settings.
+- 🚀 **Zero-touch backend lifecycle**: the harness probes `127.0.0.1:8000` on boot and spawns the Echo FastAPI backend as a managed child process when nothing answers. Start/stop, health, and a live log tail are one click in Settings.
 - 🔐 **Credential-free browser**: the realtime WebSocket is piped through the harness (`/api/voicespirit/ws`). The host injects backend authentication; API keys live in the backend's own config document and are edited through the proxied settings routes.
 - 🎙️ **Realtime Duplex Voice Calls**: ultra-low latency voice exchange powered by streaming audio pipelines (PCM16 16 kHz up / 24 kHz down).
 - ⚡ **Intelligent VAD & Interruption**: automatically pauses or cancels ongoing speech generation when user starts talking.
 - 🌊 **Live Waveform & Audio HUD**: responsive audio spectrum animation for both user and agent speech, plus an immersive full-screen call view.
-- 🎛️ **Full settings card** (Settings → Plugins → VoiceSpirit):
+- 🎛️ **Full settings card** (Settings → Plugins → Echo (voicespirit)):
   - Backend: directory, Python interpreter, port, data directory, auto-start, access token for external backends, log tail.
   - Providers: DashScope / Google / OpenAI / Doubao / Cartesia / PersonaPlex / GLM4Voice with model + voice selection and backend-side model discovery.
   - Keys: per-provider credential fields written straight into the backend config (`api_keys`, `realtime_api_urls`, …), with "configured" markers.
@@ -48,7 +48,7 @@ dsh-plugin-voicespirit/
 ### 1. Requirements
 - Node.js >= 20, pnpm >= 9
 - DeepSeek Harness (`dsh`)
-- A VoiceSpirit checkout (default `D:\voicespirit`) with its Python venv — the harness launches `python -m uvicorn main:app` from `<checkout>\backend` for you
+- An Echo (VoiceSpirit) checkout (default `D:\voicespirit`) with its Python venv — the harness launches `python -m uvicorn main:app` from `<checkout>\backend` for you
 
 ### 2. Integration into DeepSeek Harness
 
@@ -83,7 +83,7 @@ The backend starts automatically (auto-start can be turned off in the settings c
 
 Everything is configured in the web UI:
 
-- **Settings → Plugins → VoiceSpirit** (full card):
+- **Settings → Plugins → Echo (voicespirit)** (full card):
   - 后端服务 — backend directory, Python path, port, data directory, auto-start, start/stop, log tail.
   - 语音服务商 — provider, model (with "fetch models" from the backend), voice.
   - 服务商密钥 — the selected provider's credential fields (e.g. DashScope API key + realtime WebSocket URL, Doubao API key + realtime WebSocket URL, Cartesia + DeepSeek keys). Saved into the backend's own config document through the harness proxy.

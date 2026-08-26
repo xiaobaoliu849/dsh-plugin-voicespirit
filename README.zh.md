@@ -1,24 +1,24 @@
-# VoiceSpirit 实时语音插件 - DeepSeek Harness
+# Echo 实时语音插件 - DeepSeek Harness
 
 中文 | [English](README.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![dsh-plugin](https://img.shields.io/badge/dsh-plugin-brightgreen.svg)](https://github.com/topics/dsh-plugin)
 
-**VoiceSpirit for DeepSeek Harness** 是专为 [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/deepseek-harness) 打造的实时全双工语音交互与通话插件，基于 [Cordis](https://github.com/cordiverse/cordis) 微内核插件架构设计。
+**Echo for DeepSeek Harness** 是专为 [DeepSeek Harness (dsh)](https://github.com/deepseek-ai/deepseek-harness) 打造的实时全双工语音交互与通话插件，基于 [Cordis](https://github.com/cordiverse/cordis) 微内核插件架构设计。（Echo 是 VoiceSpirit 后端的新产品名；包名、路由、设置键等内部标识仍沿用 `voicespirit`。）
 
-它为 DeepSeek Harness Web 界面带来了超低延迟流式语音对话、智能 VAD 语音打断、动态音频波形 HUD 可视化以及沉浸式通话交互体验——**并且由 Harness 全程托管 VoiceSpirit 后端**：启动时自动拉起后端进程、代理实时语音 WebSocket（浏览器无需跨域、无需持有凭证），并在设置页提供完整的服务商 / API Key / 生命周期配置卡片。
+它为 DeepSeek Harness Web 界面带来了超低延迟流式语音对话、智能 VAD 语音打断、动态音频波形 HUD 可视化以及沉浸式通话交互体验——**并且由 Harness 全程托管 Echo 后端**：启动时自动拉起后端进程、代理实时语音 WebSocket（浏览器无需跨域、无需持有凭证），并在设置页提供完整的服务商 / API Key / 生命周期配置卡片。
 
 ---
 
 ## ✨ 核心特性
 
-- 🚀 **零操作后端托管**：Harness 启动时探测 `127.0.0.1:8000`，无服务则自动从 VoiceSpirit 检出目录拉起 FastAPI 后端子进程；启动 / 停止 / 健康状态 / 实时日志尽在设置卡片一键操作。
+- 🚀 **零操作后端托管**：Harness 启动时探测 `127.0.0.1:8000`，无服务则自动从 Echo (VoiceSpirit) 检出目录拉起 FastAPI 后端子进程；启动 / 停止 / 健康状态 / 实时日志尽在设置卡片一键操作。
 - 🔐 **浏览器零凭证**：实时语音 WebSocket 由 Harness 代理（`/api/voicespirit/ws`），鉴权由宿主注入；API Key 保存在后端自己的 config 文档中，通过代理路由读写。
 - 🎙️ **实时全双工语音通话**：流式音频管道（上行 PCM16 16 kHz / 下行 24 kHz），人机自然、无缝的即时语音对话。
 - ⚡ **智能 VAD 语音打断**：用户说话时自动打断 Agent 播报，体验贴近真人交谈。
 - 🌊 **动态声波律动 + 沉浸全屏**：实时频谱律动波形，支持一键展开沉浸式大屏通话界面。
-- 🎛️ **完整设置卡片**（设置 → 插件 → VoiceSpirit）：
+- 🎛️ **完整设置卡片**（设置 → 插件 → Echo (voicespirit)）：
   - **后端服务**：后端目录、Python 解释器、端口、数据目录、自动启动、启动/停止、日志查看。
   - **语音服务商**：DashScope / Google / OpenAI / 豆包 / Cartesia / PersonaPlex / GLM4Voice，模型与音色选择，支持从后端拉取可用模型列表。
   - **服务商密钥**：按所选服务商动态渲染凭证字段（如 DashScope API Key + Realtime WebSocket 地址、豆包 Token + App ID、Cartesia + DeepSeek Key），保存直写后端配置文档，已配置项带 ✓ 标记。
@@ -48,7 +48,7 @@ dsh-plugin-voicespirit/
 ### 1. 环境要求
 - Node.js >= 20，pnpm >= 9
 - DeepSeek Harness (`dsh`)
-- VoiceSpirit 检出目录（默认 `D:\voicespirit`，需含 Python venv）——Harness 会自动在 `<检出目录>\backend` 下执行 `python -m uvicorn main:app`
+- Echo (VoiceSpirit) 检出目录（默认 `D:\voicespirit`，需含 Python venv）——Harness 会自动在 `<检出目录>\backend` 下执行 `python -m uvicorn main:app`
 
 ### 2. 接入 DeepSeek Harness
 
@@ -83,7 +83,7 @@ pnpm dsh web
 
 全部配置均在 Web 界面完成：
 
-- **设置 → 插件 → VoiceSpirit**（完整卡片）：
+- **设置 → 插件 → Echo (voicespirit)**（完整卡片）：
   - **后端服务** — 后端目录、Python 路径、端口、数据目录、自动启动、启动/停止、日志。
   - **语音服务商** — 服务商、模型（可从后端拉取列表）、音色。
   - **服务商密钥** — 所选服务商的凭证字段（如 DashScope API Key + Realtime WebSocket 地址、豆包 Token + App ID、Cartesia + DeepSeek Key），通过 Harness 代理保存进后端配置文档。
