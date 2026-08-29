@@ -445,15 +445,39 @@ export const PROVIDER_VOICE_MAP: Record<string, readonly VoiceCatalogEntry[]> = 
   GLM4Voice: GLM4VOICE_VOICES,
 }
 
-/** Get rich voice catalog for a provider with safe fallback */
-export function getProviderVoices(provider: string | undefined): readonly VoiceCatalogEntry[] {
-  if (!provider || provider.trim() === '') return DASHSCOPE_VOICES
-  const normalized = provider.toLowerCase().replace(/[-_]/g, '')
-  const matchedKey = Object.keys(PROVIDER_VOICE_MAP).find(
-    k => k.toLowerCase().replace(/[-_]/g, '') === normalized
-  )
-  if (matchedKey && PROVIDER_VOICE_MAP[matchedKey]?.length) {
-    return PROVIDER_VOICE_MAP[matchedKey]
+/** Get rich voice catalog for a provider with custom voices included */
+export function getProviderVoices(
+  provider: string | undefined,
+  customVoices?: Array<{ voice: string; preferred_name?: string; type?: string; provider?: string }>,
+): readonly VoiceCatalogEntry[] {
+  let baseList = DASHSCOPE_VOICES
+  if (provider && provider.trim() !== '') {
+    const normalized = provider.toLowerCase().replace(/[-_]/g, '')
+    const matchedKey = Object.keys(PROVIDER_VOICE_MAP).find(
+      k => k.toLowerCase().replace(/[-_]/g, '') === normalized
+    )
+    if (matchedKey && PROVIDER_VOICE_MAP[matchedKey]?.length) {
+      baseList = PROVIDER_VOICE_MAP[matchedKey]
+    }
   }
-  return DASHSCOPE_VOICES
+
+  if (customVoices && customVoices.length > 0) {
+    const customEntries: VoiceCatalogEntry[] = customVoices.map((cv) => {
+      const isClone = cv.type === 'voice_clone'
+      const label = cv.preferred_name || cv.voice
+      return {
+        id: cv.voice,
+        displayName: label,
+        displayNameZh: `${label} (${isClone ? '克隆' : '设计'}音色)`,
+        gender: 'neutral',
+        language: 'zh/en',
+        tags: [isClone ? '✨ 克隆' : '✨ 设计', '自定义'],
+        description: `Custom ${isClone ? 'cloned' : 'designed'} voice: ${label}`,
+        descriptionZh: `自定义${isClone ? '克隆' : '设计'}音色 · ${label}`,
+      }
+    })
+    return [...customEntries, ...baseList]
+  }
+
+  return baseList
 }

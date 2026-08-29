@@ -16,12 +16,17 @@ It brings low-latency streaming voice conversation, intelligent VAD interruption
 - 🚀 **Zero-touch backend lifecycle**: the harness probes `127.0.0.1:8000` on boot and spawns the Echo FastAPI backend as a managed child process when nothing answers. Start/stop, health, and a live log tail are one click in Settings.
 - 🔐 **Credential-free browser**: the realtime WebSocket is piped through the harness (`/api/voicespirit/ws`). The host injects backend authentication; API keys live in the backend's own config document and are edited through the proxied settings routes.
 - 🎙️ **Realtime Duplex Voice Calls**: ultra-low latency voice exchange powered by streaming audio pipelines (PCM16 16 kHz up / 24 kHz down).
+- ✨ **Voice Studio (Design & Clone)**: custom voice design via descriptive prompt & instant voice cloning from audio sample references with a dedicated custom library.
+- 🛠️ **AI Voice Agent Tools & Sandbox**: realtime web search, Python code sandbox execution, and live knowledge retrieval during voice calls.
+- 🌐 **Realtime LiveTranslate (Simultaneous Interpretation)**: bidirectional multi-language live simultaneous translation with synchronized bilingual subtitles.
+- 👤 **Tavus Interactive Video Avatar**: photorealistic conversational video avatar streaming support in immersive call mode.
 - ⚡ **Intelligent VAD & Interruption**: automatically pauses or cancels ongoing speech generation when user starts talking.
 - 🌊 **Live Waveform & Audio HUD**: responsive audio spectrum animation for both user and agent speech, plus an immersive full-screen call view.
 - 🎛️ **Full settings card** (Settings → Plugins → Echo (voicespirit)):
   - Backend: directory, Python interpreter, port, data directory, auto-start, access token for external backends, log tail.
   - Providers: DashScope / Google / OpenAI / Doubao / Cartesia / PersonaPlex / GLM4Voice with model + voice selection and backend-side model discovery.
   - Keys: per-provider credential fields written straight into the backend config (`api_keys`, `realtime_api_urls`, …), with "configured" markers.
+  - AI Tools & Video Avatar: toggle tool calling, web search, python sandbox, and Tavus avatar pal configuration.
 - 🧩 **Modular Cordis Architecture**: client UI (`@deepseek-ai/dsh-client-ui-voicespirit`) and host bridge (`@deepseek-ai/dsh-host-voicespirit`), wired through the standard harness plugin composition.
 
 ---
@@ -102,6 +107,12 @@ By default the harness gives the backend its own data directory (`~/.dsh/voicesp
 | `GET /api/voicespirit/backend/log` | Recent backend output |
 | `GET`/`PUT /api/voicespirit/settings` | Proxied backend settings document |
 | `POST /api/voicespirit/models/fetch` | Provider model discovery |
+| `GET /api/voicespirit/voices/list` | Custom designed/cloned voices list |
+| `POST /api/voicespirit/voices/design` | Voice Studio · Design custom voice from prompt |
+| `POST /api/voicespirit/voices/clone` | Voice Studio · Clone voice from audio sample |
+| `DELETE /api/voicespirit/voices/delete` | Delete custom voice |
+| `GET /api/voicespirit/tavus/pals` | Tavus avatar pals list |
+| `POST /api/voicespirit/tavus/conversations` | Create Tavus video conversation session |
 | `WS /api/voicespirit/ws` | Realtime voice-chat pipe (auth injected host-side) |
 
 ---

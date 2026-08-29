@@ -5,18 +5,22 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import type { VoiceSpiritBackend } from '../backend.ts'
 import {
   getProviderVoices,
   type VoiceCatalogEntry,
   type VoiceGender,
 } from '../contract/voice-catalog.ts'
 import { PRESET_VOICE_SAMPLES } from '../contract/voice-samples.ts'
+import { VoiceStudioModal } from './VoiceStudioModal.tsx'
+import type { VoiceSpiritKey } from '../locales.ts'
 import styles from './VoiceCall.module.css'
 
 export interface VoiceSelectorProps {
   provider: string
   selectedVoice: string
   disabled?: boolean
+  backend?: VoiceSpiritBackend
   onSelectVoice: (voiceId: string) => void
   t?: (key: string) => string
 }
@@ -25,12 +29,15 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
   provider,
   selectedVoice,
   disabled = false,
+  backend,
   onSelectVoice,
   t: _t,
 }) => {
   const [filterGender, setFilterGender] = useState<VoiceGender | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [showCustom, setShowCustom] = useState(false)
+  const [showStudioModal, setShowStudioModal] = useState(false)
+  const [customVoices, setCustomVoices] = useState<Array<{ voice: string; preferred_name?: string; type?: string; provider?: string }>>([])
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null)
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -47,6 +54,17 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
     setPreviewingVoiceId(null)
   }
 
+  // Load custom voices from backend if available
+  useEffect(() => {
+    if (backend) {
+      void backend.fetchCustomVoices('voice_design', provider).then((res) => {
+        if (res.ok) {
+          setCustomVoices(res.voices)
+        }
+      })
+    }
+  }, [backend, provider])
+
   // Reset filter, search & stop preview when provider changes or unmounts
   useEffect(() => {
     setSearchQuery('')
@@ -57,7 +75,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
     }
   }, [provider])
 
-  const catalog = useMemo(() => getProviderVoices(provider), [provider])
+  const catalog = useMemo(() => getProviderVoices(provider, customVoices), [provider, customVoices])
 
   const filteredVoices = useMemo(() => {
     return catalog.filter((voice) => {
@@ -352,47 +370,92 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
         )}
       </div>
 
-      {/* 3. Custom / Advanced Voice ID Toggle */}
-      <div style={{ marginTop: '1px' }}>
-        <button
-          type="button"
-          onClick={() => { setShowCustom(!showCustom) }}
-          style={{
-            background: 'none',
-            border: 'none',
-            fontSize: '11px',
-            color: 'var(--dsw-alias-state-business-primary, #3b82f6)',
-            cursor: 'pointer',
-            padding: '0',
-            opacity: 0.85,
-            textDecoration: 'underline',
-          }}
-        >
-          {showCustom ? '收起自定义 ID' : isCustomSelected ? `自定义音色: ${selectedVoice}` : '+ 自定义音色 ID'}
-        </button>
-
-        {showCustom && (
-          <div style={{ marginTop: '4px', display: 'flex', gap: '6px' }}>
-            <input
-              type="text"
-              placeholder="输入音色唯一 ID (如自定义微调音色)"
-              value={selectedVoice}
+      {/* 3. Custom / Voice Studio & Advanced Voice ID */}
+      <div style={{ marginTop: '2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {backend && (
+            <button
+              type="button"
               disabled={disabled}
-              onChange={e => { onSelectVoice(e.target.value.trim()) }}
+              onClick={() => { setShowStudioModal(true) }}
               style={{
-                flex: 1,
-                fontSize: '11px',
-                padding: '4px 8px',
+                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(147, 51, 234, 0.15))',
+                border: '1px solid rgba(147, 51, 234, 0.3)',
                 borderRadius: '6px',
-                border: '1px solid var(--dsw-alias-border-l2-darkmode-thin, rgba(255,255,255,0.15))',
-                background: 'var(--dsw-specific-selector, rgba(255,255,255,0.06))',
-                color: 'inherit',
-                outline: 'none',
+                fontSize: '11px',
+                color: 'var(--dsw-alias-label-primary, #f3f4f6)',
+                cursor: 'pointer',
+                padding: '2px 8px',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.15s ease',
               }}
-            />
-          </div>
-        )}
+            >
+              <span>✨</span>
+              <span>声音工坊</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => { setShowCustom(!showCustom) }}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '11px',
+              color: 'var(--dsw-alias-state-business-primary, #3b82f6)',
+              cursor: 'pointer',
+              padding: '0',
+              opacity: 0.85,
+              textDecoration: 'underline',
+            }}
+          >
+            {showCustom ? '收起自定义 ID' : isCustomSelected ? `自定义音色: ${selectedVoice}` : '+ 自定义音色 ID'}
+          </button>
+        </div>
       </div>
+
+      {showCustom && (
+        <div style={{ marginTop: '4px', display: 'flex', gap: '6px' }}>
+          <input
+            type="text"
+            placeholder="输入音色唯一 ID (如自定义微调音色)"
+            value={selectedVoice}
+            disabled={disabled}
+            onChange={e => { onSelectVoice(e.target.value.trim()) }}
+            style={{
+              flex: 1,
+              fontSize: '11px',
+              padding: '4px 8px',
+              borderRadius: '6px',
+              border: '1px solid var(--dsw-alias-border-l2-darkmode-thin, rgba(255,255,255,0.15))',
+              background: 'var(--dsw-specific-selector, rgba(255,255,255,0.06))',
+              color: 'inherit',
+              outline: 'none',
+            }}
+          />
+        </div>
+      )}
+
+      {/* Voice Studio Creation & Management Modal */}
+      {backend && (
+        <VoiceStudioModal
+          open={showStudioModal}
+          onClose={() => {
+            setShowStudioModal(false)
+            // Reload custom voices list
+            void backend.fetchCustomVoices('voice_design', provider).then((res) => {
+              if (res.ok) setCustomVoices(res.voices)
+            })
+          }}
+          provider={provider}
+          backend={backend}
+          onSelectVoice={onSelectVoice}
+          t={_t as (k: VoiceSpiritKey) => string}
+        />
+      )}
     </div>
   )
 }

@@ -337,6 +337,7 @@ export const VoiceSettingsPopover: React.FC<VoiceSettingsPopoverProps> = ({
                   provider={provider}
                   selectedVoice={snapshot.engine.voice || entry.voices[0] || ''}
                   disabled={saving}
+                  backend={controller.getBackendClient()}
                   onSelectVoice={(voiceId) => { void applySelection({ voice: voiceId }) }}
                   t={t as (k: string) => string}
                 />

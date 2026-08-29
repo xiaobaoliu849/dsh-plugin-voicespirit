@@ -16,12 +16,17 @@
 - 🚀 **零操作后端托管**：Harness 启动时探测 `127.0.0.1:8000`，无服务则自动从 Echo (VoiceSpirit) 检出目录拉起 FastAPI 后端子进程；启动 / 停止 / 健康状态 / 实时日志尽在设置卡片一键操作。
 - 🔐 **浏览器零凭证**：实时语音 WebSocket 由 Harness 代理（`/api/voicespirit/ws`），鉴权由宿主注入；API Key 保存在后端自己的 config 文档中，通过代理路由读写。
 - 🎙️ **实时全双工语音通话**：流式音频管道（上行 PCM16 16 kHz / 下行 24 kHz），人机自然、无缝的即时语音对话。
+- ✨ **声音工坊 (Voice Studio)**：支持提示词设计定制音色与音频样本声音克隆，提供专属个性化音色库。
+- 🛠️ **AI 语音 Agent 工具与沙盒**：支持实时联网搜索、Python 代码沙盒执行与实时资讯检索。
+- 🌐 **实时流式双语同传 (LiveTranslate)**：多语种双向流式同传口译与双语字幕。
+- 👤 **Tavus 交互式数字人**：支持沉浸式视频数字人形象实时互动。
 - ⚡ **智能 VAD 语音打断**：用户说话时自动打断 Agent 播报，体验贴近真人交谈。
 - 🌊 **动态声波律动 + 沉浸全屏**：实时频谱律动波形，支持一键展开沉浸式大屏通话界面。
 - 🎛️ **完整设置卡片**（设置 → 插件 → Echo (voicespirit)）：
   - **后端服务**：后端目录、Python 解释器、端口、数据目录、自动启动、启动/停止、日志查看。
   - **语音服务商**：DashScope / Google / OpenAI / 豆包 / Cartesia / PersonaPlex / GLM4Voice，模型与音色选择，支持从后端拉取可用模型列表。
-  - **服务商密钥**：按所选服务商动态渲染凭证字段（如 DashScope API Key + Realtime WebSocket 地址、豆包 Token + App ID、Cartesia + DeepSeek Key），保存直写后端配置文档，已配置项带 ✓ 标记。
+  - **服务商密钥**：按所选服务商动态渲染凭证字段，保存直写后端配置文档，已配置项带 ✓ 标记。
+  - **AI 工具与数字人**：实时工具调用、联网搜索、Python 沙盒与 Tavus 数字人配置。
 - 🧩 **Cordis 标准插件架构**：前端 UI 组件包（`@deepseek-ai/dsh-client-ui-voicespirit`）与宿主桥接包（`@deepseek-ai/dsh-host-voicespirit`），通过 Harness 标准插件组合接入。
 
 ---
@@ -98,11 +103,17 @@ pnpm dsh web
 | 路由 | 用途 |
 |---|---|
 | `GET /api/voicespirit/status` | 后端阶段、健康状态、生效配置 |
-| `POST /api/voicespirit/backend/start` / `stop` | 生命周期命令 |
-| `GET /api/voicespirit/backend/log` | 后端近期输出 |
-| `GET`/`PUT /api/voicespirit/settings` | 后端配置文档代理 |
-| `POST /api/voicespirit/models/fetch` | 服务商模型探测 |
-| `WS /api/voicespirit/ws` | 实时语音通话管道（鉴权由宿主注入） |
+| `POST /api/voicespirit/backend/start` / `stop` | 后端生命周期控制命令 |
+| `GET /api/voicespirit/backend/log` | 后端近期运行日志 |
+| `GET`/`PUT /api/voicespirit/settings` | 后端配置文档读写代理 |
+| `POST /api/voicespirit/models/fetch` | 服务商模型探测与自动发现 |
+| `GET /api/voicespirit/voices/list` | 自定义音色库列表 |
+| `POST /api/voicespirit/voices/design` | 声音工坊 · 提示词设计音色 |
+| `POST /api/voicespirit/voices/clone` | 声音工坊 · 音频样本克隆音色 |
+| `DELETE /api/voicespirit/voices/delete` | 删除自定义音色 |
+| `GET /api/voicespirit/tavus/pals` | Tavus 数字人形象列表 |
+| `POST /api/voicespirit/tavus/conversations` | 创建 Tavus 视频对话会话 |
+| `WS /api/voicespirit/ws` | 实时全双工语音通话管道（宿主注入鉴权） |
 
 ---
 

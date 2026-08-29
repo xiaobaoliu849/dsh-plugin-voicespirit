@@ -153,6 +153,77 @@ export class VoiceSpiritBackend {
   }
 
   /**
+   * Fetch custom designed or cloned voices from backend.
+   */
+  async fetchCustomVoices(voiceType: 'voice_design' | 'voice_clone' = 'voice_design', provider = 'qwen'):
+    Promise<{ ok: true, voices: Array<{ voice: string; preferred_name?: string; type?: string; provider?: string }> } | { ok: false, error: string }> {
+    const result = await this.proxy(`${API_ROOT}/voices/list?voice_type=${encodeURIComponent(voiceType)}&provider=${encodeURIComponent(provider)}`, {
+      method: 'GET',
+    })
+    if (!result.ok) return result
+    const list = (result.value as { voices?: Array<{ voice: string; preferred_name?: string; type?: string; provider?: string }> })?.voices
+    return { ok: true, voices: Array.isArray(list) ? list : [] }
+  }
+
+  /**
+   * Create a new voice via Voice Design prompt.
+   */
+  async createVoiceDesign(payload: {
+    voice_prompt: string
+    preview_text: string
+    preferred_name: string
+    language?: string
+    provider?: string
+  }): Promise<{ ok: true, value: unknown } | { ok: false, error: string }> {
+    return this.proxy(`${API_ROOT}/voices/design`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  }
+
+  /**
+   * Delete a custom voice.
+   */
+  async deleteCustomVoice(voiceName: string, voiceType: 'voice_design' | 'voice_clone' = 'voice_design', provider = 'qwen'):
+    Promise<{ ok: true } | { ok: false, error: string }> {
+    const result = await this.proxy(`${API_ROOT}/voices/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ voiceName, voiceType, provider }),
+    })
+    return result.ok ? { ok: true } : { ok: false, error: result.error }
+  }
+
+  /**
+   * List Tavus interactive video pals.
+   */
+  async fetchTavusPals(): Promise<{ ok: true, pals: Array<{ pal_id: string; pal_name: string }> } | { ok: false, error: string }> {
+    const result = await this.proxy(`${API_ROOT}/tavus/pals`, { method: 'GET' })
+    if (!result.ok) return result
+    const pals = (result.value as { pals?: Array<{ pal_id: string; pal_name: string }> })?.pals
+    return { ok: true, pals: Array.isArray(pals) ? pals : [] }
+  }
+
+  /**
+   * Create a Tavus video conversation session.
+   */
+  async createTavusConversation(payload: { pal_id?: string; conversation_name?: string }):
+    Promise<{ ok: true, conversationUrl: string; conversationId: string } | { ok: false, error: string }> {
+    const result = await this.proxy(`${API_ROOT}/tavus/conversations`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!result.ok) return result
+    const val = result.value as { conversation_url?: string; conversation_id?: string }
+    if (typeof val?.conversation_url === 'string' && val.conversation_url !== '') {
+      return { ok: true, conversationUrl: val.conversation_url, conversationId: val.conversation_id ?? '' }
+    }
+    return { ok: false, error: 'No conversation_url in Tavus response' }
+  }
+
+  /**
    * Ask the backend to list a provider's models with a candidate credential.
    * @returns the model ids, or the failure message.
    */

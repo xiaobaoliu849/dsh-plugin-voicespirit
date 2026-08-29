@@ -253,6 +253,71 @@ export class VoiceSpiritGateway {
   }
 
   /**
+   * List custom designed or cloned voices from the backend.
+   */
+  async listVoices(voiceType: string = 'voice_design', provider: string = 'qwen'): Promise<
+    { ok: true; value: unknown } | { ok: false; status: number; message: string }
+  > {
+    const query = new URLSearchParams({
+      voice_type: voiceType,
+      provider: provider,
+      page_index: '0',
+      page_size: '100',
+    })
+    return this.proxyJson(`/api/voices/?${query.toString()}`, { method: 'GET' })
+  }
+
+  /**
+   * Create a new custom voice via Voice Design prompt.
+   */
+  async createVoiceDesign(payload: unknown): Promise<
+    { ok: true; value: unknown } | { ok: false; status: number; message: string }
+  > {
+    return this.proxyJson('/api/voices/design', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  }
+
+  /**
+   * Delete a custom designed or cloned voice from the backend.
+   */
+  async deleteVoice(voiceName: string, voiceType: string = 'voice_design', provider: string = 'qwen'): Promise<
+    { ok: true; value: unknown } | { ok: false; status: number; message: string }
+  > {
+    const query = new URLSearchParams({
+      voice_type: voiceType,
+      provider: provider,
+    })
+    return this.proxyJson(`/api/voices/${encodeURIComponent(voiceName)}?${query.toString()}`, {
+      method: 'DELETE',
+    })
+  }
+
+  /**
+   * List Tavus interactive video avatar pals.
+   */
+  async listTavusPals(): Promise<
+    { ok: true; value: unknown } | { ok: false; status: number; message: string }
+  > {
+    return this.proxyJson('/api/tavus/pals', { method: 'GET' })
+  }
+
+  /**
+   * Create a Tavus conversation session for interactive video avatar.
+   */
+  async createTavusConversation(payload: unknown): Promise<
+    { ok: true; value: unknown } | { ok: false; status: number; message: string }
+  > {
+    return this.proxyJson('/api/tavus/conversations', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  }
+
+  /**
    * Bearer token for the realtime WebSocket handshake and the settings proxy.
    * The token this plugin injected at spawn time comes first; the user-level
    * token covers an adopted backend.

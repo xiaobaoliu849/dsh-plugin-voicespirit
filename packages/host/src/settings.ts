@@ -54,6 +54,16 @@ export interface VoiceSpiritSettings {
    * injected token and never needs this field.
    */
   apiToken: string
+  /** Enable AI voice agent realtime tools & function calling. */
+  toolsEnabled?: boolean
+  /** Enable realtime web search tool during duplex calls. */
+  webSearchEnabled?: boolean
+  /** Enable Python code sandbox execution tool during duplex calls. */
+  pythonExecutorEnabled?: boolean
+  /** Enable Tavus interactive video avatar. */
+  tavusEnabled?: boolean
+  /** Tavus PAL ID for video avatar. */
+  tavusPalId?: string
 }
 
 /** Schema for the namespace; also the wire envelope configuration UIs render. */
@@ -67,6 +77,11 @@ export const VoiceSpiritSettingsSchema: z<VoiceSpiritSettings> = z.object({
   defaultModel: z.string().default(''),
   defaultVoice: z.string().default(''),
   apiToken: z.string().default(''),
+  toolsEnabled: z.boolean().default(true),
+  webSearchEnabled: z.boolean().default(true),
+  pythonExecutorEnabled: z.boolean().default(false),
+  tavusEnabled: z.boolean().default(false),
+  tavusPalId: z.string().default(''),
 })
 
 /** Resolved section when no settings provider is composed (mirrors the schema defaults). */
@@ -80,6 +95,11 @@ export const DEFAULT_VOICESPIRIT_SETTINGS: VoiceSpiritSettings = {
   defaultModel: '',
   defaultVoice: '',
   apiToken: '',
+  toolsEnabled: true,
+  webSearchEnabled: true,
+  pythonExecutorEnabled: false,
+  tavusEnabled: false,
+  tavusPalId: '',
 }
 
 /** The subset of the section the status route echoes back to the browser. */

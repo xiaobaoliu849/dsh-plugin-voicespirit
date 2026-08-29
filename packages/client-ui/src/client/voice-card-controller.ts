@@ -116,6 +116,15 @@ export interface VoiceSettingsCardState {
 
   /** EverMemOS long-term memory section; fields load with the credentials. */
   memory: MemorySectionView | undefined
+
+  /** AI Voice Agent Tools */
+  toolsEnabled: boolean
+  webSearchEnabled: boolean
+  pythonExecutorEnabled: boolean
+
+  /** Tavus Video Avatar */
+  tavusEnabled: boolean
+  tavusPalId: string
 }
 
 /** The registration-side face the card's slot entry injects. */
@@ -124,6 +133,8 @@ export interface VoiceSettingsCardFace {
     /** Card snapshot bound by the renderer as useVoiceCard. */
     voiceCard: SnapshotStore<VoiceSettingsCardState>
   }
+  /** The backend client instance */
+  backendClient: VoiceSpiritBackend
   /** Stage draft text for one harness field. */
   edit: (field: CardTextFieldKey, text: string) => void
   /** Stage the auto-start preference. */
@@ -134,6 +145,10 @@ export interface VoiceSettingsCardFace {
   selectModel: (model: string) => void
   /** Stage a voice. */
   selectVoice: (voice: string) => void
+  /** Stage tool toggles */
+  setToolToggle: (key: 'toolsEnabled' | 'webSearchEnabled' | 'pythonExecutorEnabled' | 'tavusEnabled', value: boolean) => void
+  /** Stage Tavus Pal ID */
+  setTavusPalId: (palId: string) => void
   /** Write every staged edit (harness section, then credentials and memory). */
   save: () => void
   /** Drop every staged edit. */
@@ -178,6 +193,11 @@ export class VoiceSettingsCardController {
   private stagedProvider: string | undefined
   private stagedModel: string | undefined
   private stagedVoice: string | undefined
+  private stagedToolsEnabled: boolean | undefined
+  private stagedWebSearchEnabled: boolean | undefined
+  private stagedPythonExecutorEnabled: boolean | undefined
+  private stagedTavusEnabled: boolean | undefined
+  private stagedTavusPalId: string | undefined
   private fetchedModels: string[] = []
   private backendDocument: BackendSettingsDocument | undefined
   private saving = false
@@ -204,6 +224,7 @@ export class VoiceSettingsCardController {
   inject(): VoiceSettingsCardFace {
     return {
       hooks: { voiceCard: this.store },
+      backendClient: this.backendClient,
       edit: (field, text) => {
         this.staged.set(field, text)
         this.clearResult()
@@ -232,6 +253,19 @@ export class VoiceSettingsCardController {
         this.clearResult()
         this.publish()
       },
+      setToolToggle: (key, value) => {
+        if (key === 'toolsEnabled') this.stagedToolsEnabled = value
+        else if (key === 'webSearchEnabled') this.stagedWebSearchEnabled = value
+        else if (key === 'pythonExecutorEnabled') this.stagedPythonExecutorEnabled = value
+        else if (key === 'tavusEnabled') this.stagedTavusEnabled = value
+        this.clearResult()
+        this.publish()
+      },
+      setTavusPalId: (palId) => {
+        this.stagedTavusPalId = palId
+        this.clearResult()
+        this.publish()
+      },
       save: () => { void this.save() },
       discard: () => {
         this.staged.clear()
@@ -241,6 +275,11 @@ export class VoiceSettingsCardController {
         this.stagedProvider = undefined
         this.stagedModel = undefined
         this.stagedVoice = undefined
+        this.stagedToolsEnabled = undefined
+        this.stagedWebSearchEnabled = undefined
+        this.stagedPythonExecutorEnabled = undefined
+        this.stagedTavusEnabled = undefined
+        this.stagedTavusPalId = undefined
         this.clearResult()
         this.publish()
       },
@@ -369,7 +408,12 @@ export class VoiceSettingsCardController {
         || this.stagedAutoStart !== undefined
         || this.stagedProvider !== undefined
         || this.stagedModel !== undefined
-        || this.stagedVoice !== undefined,
+        || this.stagedVoice !== undefined
+        || this.stagedToolsEnabled !== undefined
+        || this.stagedWebSearchEnabled !== undefined
+        || this.stagedPythonExecutorEnabled !== undefined
+        || this.stagedTavusEnabled !== undefined
+        || this.stagedTavusPalId !== undefined,
       saving: this.saving,
       failed: this.failed,
       savedKey: this.savedKey,
@@ -410,6 +454,12 @@ export class VoiceSettingsCardController {
       modelMessage: undefined,
       log: this.log,
       memory: this.memoryProjection(),
+
+      toolsEnabled: this.stagedToolsEnabled ?? section?.toolsEnabled ?? true,
+      webSearchEnabled: this.stagedWebSearchEnabled ?? section?.webSearchEnabled ?? true,
+      pythonExecutorEnabled: this.stagedPythonExecutorEnabled ?? section?.pythonExecutorEnabled ?? false,
+      tavusEnabled: this.stagedTavusEnabled ?? section?.tavusEnabled ?? false,
+      tavusPalId: this.stagedTavusPalId ?? section?.tavusPalId ?? '',
     }
   }
 
@@ -442,6 +492,11 @@ export class VoiceSettingsCardController {
       if (this.stagedProvider !== undefined) patch.defaultProvider = this.stagedProvider
       if (this.stagedModel !== undefined) patch.defaultModel = this.stagedModel
       if (this.stagedVoice !== undefined) patch.defaultVoice = this.stagedVoice
+      if (this.stagedToolsEnabled !== undefined) patch.toolsEnabled = this.stagedToolsEnabled
+      if (this.stagedWebSearchEnabled !== undefined) patch.webSearchEnabled = this.stagedWebSearchEnabled
+      if (this.stagedPythonExecutorEnabled !== undefined) patch.pythonExecutorEnabled = this.stagedPythonExecutorEnabled
+      if (this.stagedTavusEnabled !== undefined) patch.tavusEnabled = this.stagedTavusEnabled
+      if (this.stagedTavusPalId !== undefined) patch.tavusPalId = this.stagedTavusPalId
       if (Object.keys(patch).length > 0) {
         for (const [field, value] of Object.entries(patch)) {
           await this.settingsScope.set(field, value)

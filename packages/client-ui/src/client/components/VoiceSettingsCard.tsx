@@ -241,6 +241,7 @@ export function VoiceSettingsCard(props: VoiceSettingsCardProps) {
                 provider={state.provider}
                 selectedVoice={state.voice}
                 disabled={!state.writable}
+                backend={props.backendClient}
                 onSelectVoice={(voiceId) => { props.selectVoice(voiceId) }}
                 t={t as (k: string) => string}
               />
@@ -265,6 +266,36 @@ export function VoiceSettingsCard(props: VoiceSettingsCardProps) {
               onEdit={(text) => { props.editCredential(field.path, text) }}
             />
           ))}
+
+          {/* ── AI Tools & Sandbox ───────────────────────────────────── */}
+          <h4 className={styles.sectionTitle}>{t('sectionTools')}</h4>
+          <div className={styles.fieldRow}>
+            <ToggleField
+              label={t('toolsEnable')}
+              hint={t('toolsEnableHint')}
+              value={state.toolsEnabled}
+              disabled={!state.writable}
+              onChange={(value) => { props.setToolToggle('toolsEnabled', value) }}
+            />
+          </div>
+          {state.toolsEnabled && (
+            <div className={styles.fieldRow}>
+              <ToggleField
+                label={t('webSearchEnable')}
+                hint={t('webSearchEnableHint')}
+                value={state.webSearchEnabled}
+                disabled={!state.writable}
+                onChange={(value) => { props.setToolToggle('webSearchEnabled', value) }}
+              />
+              <ToggleField
+                label={t('pythonExecutorEnable')}
+                hint={t('pythonExecutorEnableHint')}
+                value={state.pythonExecutorEnabled}
+                disabled={!state.writable}
+                onChange={(value) => { props.setToolToggle('pythonExecutorEnabled', value) }}
+              />
+            </div>
+          )}
 
           {/* ── Memory · EverMemOS ───────────────────────────────────── */}
           {state.memory !== undefined && (
@@ -333,6 +364,28 @@ export function VoiceSettingsCard(props: VoiceSettingsCardProps) {
                 </>
               )}
             </>
+          )}
+
+          {/* ── Tavus Video Avatar ──────────────────────────────────── */}
+          <h4 className={styles.sectionTitle}>{t('sectionTavus')}</h4>
+          <div className={styles.fieldRow}>
+            <ToggleField
+              label={t('tavusEnable')}
+              hint={t('tavusEnableHint')}
+              value={state.tavusEnabled}
+              disabled={!state.writable}
+              onChange={(value) => { props.setToolToggle('tavusEnabled', value) }}
+            />
+          </div>
+          {state.tavusEnabled && (
+            <TextField
+              id="voicespirit-tavus-pal"
+              label={t('tavusPal')}
+              placeholder="e.g. p8468b3687"
+              field={{ text: state.tavusPalId, overridden: state.tavusPalId !== '' }}
+              disabled={!state.writable}
+              onEdit={(text) => { props.setTavusPalId(text) }}
+            />
           )}
 
           {/* ── Footer ──────────────────────────────────────────────── */}

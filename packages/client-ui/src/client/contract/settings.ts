@@ -46,6 +46,16 @@ export interface VoiceSpiritSettings {
   targetLanguage?: string
   /** Whether the AI speaks the translated text out loud via TTS. */
   echoTargetLanguage?: boolean
+  /** Enable AI voice agent realtime tools & function calling. */
+  toolsEnabled?: boolean
+  /** Enable realtime web search tool during duplex calls. */
+  webSearchEnabled?: boolean
+  /** Enable Python code sandbox execution tool during duplex calls. */
+  pythonExecutorEnabled?: boolean
+  /** Enable Tavus interactive video avatar. */
+  tavusEnabled?: boolean
+  /** Tavus PAL ID for video avatar. */
+  tavusPalId?: string
 }
 
 export interface TranslateLanguage {

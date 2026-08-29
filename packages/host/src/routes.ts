@@ -160,6 +160,74 @@ export function registerVoiceSpiritRoutes(ctx: Context, gateway: VoiceSpiritGate
         res.end()
       },
     },
+    {
+      kind: 'exact',
+      path: `${VOICESPIRIT_API_PATH}/voices/list`,
+      handler: async (req, res) => {
+        const search = new URL(req.url ?? '/', 'http://x').searchParams
+        const voiceType = search.get('voice_type') ?? 'voice_design'
+        const provider = search.get('provider') ?? 'qwen'
+        respondProxyResult(res, await gateway.listVoices(voiceType, provider))
+      },
+    },
+    {
+      kind: 'exact',
+      path: `${VOICESPIRIT_API_PATH}/voices/design`,
+      handler: async (req, res) => {
+        if (req.method !== 'POST') {
+          json(res, 405, { ok: false, error: 'POST required' })
+          return
+        }
+        const body = await readJsonBody(req)
+        if (body === undefined || typeof body !== 'object' || body === null) {
+          json(res, 400, { ok: false, error: 'a JSON voice design request is required' })
+          return
+        }
+        respondProxyResult(res, await gateway.createVoiceDesign(body))
+      },
+    },
+    {
+      kind: 'exact',
+      path: `${VOICESPIRIT_API_PATH}/voices/delete`,
+      handler: async (req, res) => {
+        if (req.method !== 'POST' && req.method !== 'DELETE') {
+          json(res, 405, { ok: false, error: 'POST or DELETE required' })
+          return
+        }
+        const body = await readJsonBody(req) as { voiceName?: string; voiceType?: string; provider?: string } | undefined
+        if (typeof body?.voiceName !== 'string' || body.voiceName === '') {
+          json(res, 400, { ok: false, error: 'voiceName is required' })
+          return
+        }
+        respondProxyResult(
+          res,
+          await gateway.deleteVoice(
+            body.voiceName,
+            body.voiceType ?? 'voice_design',
+            body.provider ?? 'qwen',
+          ),
+        )
+      },
+    },
+    {
+      kind: 'exact',
+      path: `${VOICESPIRIT_API_PATH}/tavus/pals`,
+      handler: async (_req, res) => {
+        respondProxyResult(res, await gateway.listTavusPals())
+      },
+    },
+    {
+      kind: 'exact',
+      path: `${VOICESPIRIT_API_PATH}/tavus/conversations`,
+      handler: async (req, res) => {
+        if (req.method !== 'POST') {
+          json(res, 405, { ok: false, error: 'POST required' })
+          return
+        }
+        const body = await readJsonBody(req)
+        respondProxyResult(res, await gateway.createTavusConversation(body ?? {}))
+      },
+    },
   ]
   for (const route of routes) {
     ctx.effect(() => ctx.webServer.register(route), `host-voicespirit: ${route.kind} ${route.path}`)
