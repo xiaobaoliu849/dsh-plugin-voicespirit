@@ -188,6 +188,39 @@ export function registerVoiceSpiritRoutes(ctx: Context, gateway: VoiceSpiritGate
     },
     {
       kind: 'exact',
+      path: `${VOICESPIRIT_API_PATH}/voices/clone`,
+      handler: async (req, res) => {
+        if (req.method !== 'POST') {
+          json(res, 405, { ok: false, error: 'POST required' })
+          return
+        }
+        const contentType = req.headers['content-type'] ?? ''
+        const chunks: Buffer[] = []
+        for await (const chunk of req) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+        }
+        const buffer = Buffer.concat(chunks)
+        const result = await gateway.proxyRaw('/api/voices/clone', {
+          method: 'POST',
+          headers: contentType ? { 'content-type': contentType } : undefined,
+          body: buffer,
+        })
+        if (!result.ok) {
+          json(res, result.status, { ok: false, error: result.message })
+          return
+        }
+        const text = await result.response.text()
+        try {
+          const parsed = JSON.parse(text)
+          json(res, result.response.status, parsed)
+        } catch {
+          res.writeHead(result.response.status, { 'content-type': 'text/plain' })
+          res.end(text)
+        }
+      },
+    },
+    {
+      kind: 'exact',
       path: `${VOICESPIRIT_API_PATH}/voices/delete`,
       handler: async (req, res) => {
         if (req.method !== 'POST' && req.method !== 'DELETE') {
