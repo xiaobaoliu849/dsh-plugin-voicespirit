@@ -70,8 +70,19 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
     }
   }, [controller, isSpeaking])
 
-  const providerLabel = [engine.provider, engine.voice]
-    .filter(part => part !== '')
+  const cleanVoiceName = (name?: string) => {
+    if (!name) return ''
+    return name
+      .replace(/^zh_female_/, '')
+      .replace(/^zh_male_/, '')
+      .replace(/_jupiter.*$/, '')
+      .replace(/_bigtts.*$/, '')
+      .replace(/_moon.*$/, '')
+  }
+
+  const voiceDisplay = cleanVoiceName(engine.voice)
+  const providerLabel = [engine.provider, voiceDisplay]
+    .filter(part => part && part.trim() !== '')
     .join(' · ')
 
   // Server errors carry their real cause
@@ -85,9 +96,9 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
 
   const currentTranscript = isTranslateMode
     ? (snapshot.translationText
-        ? `🌐 译文: ${snapshot.translationText}`
+        ? `🌐 ${snapshot.translationText}`
         : snapshot.userText
-        ? `👤 原文: ${snapshot.userText}`
+        ? `👤 ${snapshot.userText}`
         : undefined)
     : (snapshot.assistantText
         ? `${t('aiSpeaking')}: ${snapshot.assistantText}`
@@ -144,7 +155,7 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
           <VoiceWaveformCanvas
             controller={controller}
             isSpeaking={isSpeaking}
-            width={64}
+            width={56}
             height={18}
           />
         </div>
@@ -164,7 +175,6 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
             onClick={() => { void controller.setVoiceMode('dialogue') }}
             title={t('modeDialogueDesc')}
           >
-            <span>🗣️</span>
             <span>{t('modeDialogue')}</span>
           </button>
           <button
@@ -173,12 +183,11 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
             onClick={() => { void controller.setVoiceMode('translate') }}
             title={t('modeTranslateDesc')}
           >
-            <span>🌐</span>
             <span>{t('modeTranslate')}</span>
           </button>
         </div>
 
-        {/* LiveTranslate Language Pair Pill */}
+        {/* LiveTranslate Language Pair Pill or Provider Badge */}
         {isTranslateMode ? (
           <div
             className={styles.langPairPill}

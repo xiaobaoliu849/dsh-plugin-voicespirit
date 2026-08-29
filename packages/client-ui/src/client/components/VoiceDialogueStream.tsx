@@ -52,7 +52,6 @@ export const VoiceDialogueStream: React.FC<VoiceDialogueStreamProps> = ({
     || snapshot.userText.trim().length > 0
     || snapshot.assistantText.trim().length > 0
     || snapshot.translationText.trim().length > 0
-    || engine.phase !== 'idle'
 
   if (!hasAnyContent) return null
 

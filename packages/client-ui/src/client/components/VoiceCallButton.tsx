@@ -39,14 +39,24 @@ export const VoiceCallHeaderButton: React.FC<VoiceCallHeaderButtonProps> = (prop
   const isCallActive = actions?.isCallActive || false
   const t = typeof props.t === 'function' ? props.t : (k: string) => k
 
+  const cleanVoiceName = (name?: string) => {
+    if (!name) return ''
+    return name
+      .replace(/^zh_female_/, '')
+      .replace(/^zh_male_/, '')
+      .replace(/_jupiter.*$/, '')
+      .replace(/_bigtts.*$/, '')
+      .replace(/_moon.*$/, '')
+  }
+
   const provider = snapshot?.engine.provider || 'DashScope'
-  const voice = snapshot?.engine.voice || 'Default'
+  const voice = cleanVoiceName(snapshot?.engine.voice) || 'Default'
   const badgeLabel = `${provider} · ${voice}`
 
   return (
     <div className={styles.preCallGroup}>
-      {/* 1. Pre-call Provider & Voice Pill (Accessible BEFORE and during call) */}
-      {controller && snapshot && (
+      {/* 1. Pre-call Provider & Voice Pill (Accessible BEFORE call) */}
+      {!isCallActive && controller && snapshot && (
         <VoiceSettingsPopover
           snapshot={snapshot}
           controller={controller}
