@@ -73,7 +73,9 @@ export interface VoiceCallOptions {
   memory?: EvermemSessionConfig | undefined
   onStateChange?: ((state: VoiceEngineState) => void) | undefined
   onLevelsChange?: ((micLevel: number, speakerLevel: number, micBands: number[], speakerBands: number[]) => void) | undefined
-  onTranscriptChange?: ((userText: string, isInterim: boolean, assistantText: string, translationText?: string | undefined) => void) | undefined
+  onTranscriptChange?: (
+    (userText: string, isInterim: boolean, assistantText: string, translationText?: string | undefined) => void
+  ) | undefined
   onTurnComplete?: ((turn: VoiceTranscriptTurn) => void) | undefined
   onError?: ((error: { code: VoiceEngineErrorCode, message: string }) => void) | undefined
 }
@@ -598,7 +600,8 @@ export class VoiceAudioEngine {
           return
         }
         // Auto-reconnect on unexpected disconnects if the session was active and not policy/auth rejected
-        if (!this.isManuallyStopped && wasLive && this.reconnectAttempt < this.maxReconnectAttempts && ev.code !== 1000 && ev.code !== 1003 && ev.code !== 1008) {
+        const isAuthOrCleanClose = ev.code === 1000 || ev.code === 1003 || ev.code === 1008
+        if (!this.isManuallyStopped && wasLive && this.reconnectAttempt < this.maxReconnectAttempts && !isAuthOrCleanClose) {
           this.scheduleReconnect()
           return
         }
@@ -710,7 +713,8 @@ export class VoiceAudioEngine {
         this.stop(false, true)
         return
       }
-      if (!this.isManuallyStopped && this.reconnectAttempt < this.maxReconnectAttempts && ev.code !== 1000 && ev.code !== 1003 && ev.code !== 1008) {
+      const isAuthOrCleanClose = ev.code === 1000 || ev.code === 1003 || ev.code === 1008
+      if (!this.isManuallyStopped && this.reconnectAttempt < this.maxReconnectAttempts && !isAuthOrCleanClose) {
         this.scheduleReconnect()
       } else {
         this.fail('unreachable', `reconnect close ${ev.code}`)

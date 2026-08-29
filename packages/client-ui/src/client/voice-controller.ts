@@ -275,7 +275,6 @@ export class VoiceSpiritController {
       const missingSecrets = entry.credentials
         .filter(c => c.secret)
         .filter(c => readBackendPath(document, c.path).trim() === '')
-      
       const missingKeys: string[] = missingSecrets.map(c => c.labelKey)
       if (provider === 'DashScope') {
         const rtUrl = readBackendPath(document, 'realtime_api_urls.DashScope').trim()

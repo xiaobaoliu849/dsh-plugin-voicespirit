@@ -628,7 +628,7 @@
   align-items: center;
   justify-content: space-between;
   background-color: #121018;
-  background-image: 
+  background-image:
     radial-gradient(circle at 50% 38%, rgba(249, 115, 22, 0.22) 0%, rgba(244, 63, 94, 0.15) 28%, rgba(139, 92, 246, 0.11) 50%, transparent 72%),
     radial-gradient(circle at 18% 22%, rgba(251, 146, 60, 0.16) 0%, transparent 45%),
     radial-gradient(circle at 82% 24%, rgba(236, 72, 153, 0.16) 0%, transparent 45%),
@@ -1906,4 +1906,3 @@
 .dialogueErrorBtnPrimary:hover {
   background: #dc2626;
 }
-

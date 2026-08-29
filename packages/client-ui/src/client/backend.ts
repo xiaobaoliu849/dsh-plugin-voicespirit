@@ -155,8 +155,13 @@ export class VoiceSpiritBackend {
   /**
    * Fetch custom designed or cloned voices from backend.
    */
-  async fetchCustomVoices(voiceType: 'voice_design' | 'voice_clone' = 'voice_design', provider = 'qwen'):
-    Promise<{ ok: true, voices: Array<{ voice: string; preferred_name?: string; type?: string; provider?: string }> } | { ok: false, error: string }> {
+  async fetchCustomVoices(
+    voiceType: 'voice_design' | 'voice_clone' = 'voice_design',
+    provider = 'qwen',
+  ): Promise<
+    | { ok: true; voices: Array<{ voice: string; preferred_name?: string; type?: string; provider?: string }> }
+    | { ok: false; error: string }
+  > {
     const result = await this.proxy(`${API_ROOT}/voices/list?voice_type=${encodeURIComponent(voiceType)}&provider=${encodeURIComponent(provider)}`, {
       method: 'GET',
     })
