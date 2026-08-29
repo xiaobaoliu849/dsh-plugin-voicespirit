@@ -47,7 +47,7 @@ export interface VoiceEngineState {
   isConnected: boolean
   isMuted: boolean
   isPushToTalk?: boolean
-  reconnectAttempt?: number
+  reconnectAttempt?: number | undefined
   provider: string
   model: string
   voice: string
@@ -73,7 +73,7 @@ export interface VoiceCallOptions {
   memory?: EvermemSessionConfig | undefined
   onStateChange?: ((state: VoiceEngineState) => void) | undefined
   onLevelsChange?: ((micLevel: number, speakerLevel: number, micBands: number[], speakerBands: number[]) => void) | undefined
-  onTranscriptChange?: ((userText: string, isInterim: boolean, assistantText: string, translationText?: string) => void) | undefined
+  onTranscriptChange?: ((userText: string, isInterim: boolean, assistantText: string, translationText?: string | undefined) => void) | undefined
   onTurnComplete?: ((turn: VoiceTranscriptTurn) => void) | undefined
   onError?: ((error: { code: VoiceEngineErrorCode, message: string }) => void) | undefined
 }
@@ -82,11 +82,11 @@ export interface VoiceTranscriptTurn {
   id: string
   userText: string
   assistantText: string
-  translationText?: string
-  sourceLanguage?: string
-  targetLanguage?: string
+  translationText?: string | undefined
+  sourceLanguage?: string | undefined
+  targetLanguage?: string | undefined
   timestamp: number
-  interrupted?: boolean
+  interrupted?: boolean | undefined
 }
 
 /** JSON control events the backend streams alongside binary audio frames. */
@@ -497,6 +497,12 @@ export class VoiceAudioEngine {
     }
   }
 
+  public reportPreflightError(code: VoiceEngineErrorCode, message: string): void {
+    this.isManuallyStopped = true
+    this.fail(code, message)
+    this.stop(false, true)
+  }
+
   public async start(): Promise<void> {
     if (this.isConnected || this.phase === 'connecting') return
 
@@ -575,8 +581,13 @@ export class VoiceAudioEngine {
           this.stop(false, true)
           return
         }
+        if (ev.code === 1003) {
+          this.fail('auth', ev.reason || '缺少必需的服务商配置或密钥')
+          this.stop(false, true)
+          return
+        }
         if (ev.code === 1008) {
-          this.fail('auth', `close ${ev.code}`)
+          this.fail('auth', ev.reason || `close ${ev.code}`)
           this.stop(false, true)
           return
         }
@@ -586,8 +597,8 @@ export class VoiceAudioEngine {
           this.stop(false, true)
           return
         }
-        // Auto-reconnect on unexpected disconnects if the session was active
-        if (!this.isManuallyStopped && wasLive && this.reconnectAttempt < this.maxReconnectAttempts) {
+        // Auto-reconnect on unexpected disconnects if the session was active and not policy/auth rejected
+        if (!this.isManuallyStopped && wasLive && this.reconnectAttempt < this.maxReconnectAttempts && ev.code !== 1000 && ev.code !== 1003 && ev.code !== 1008) {
           this.scheduleReconnect()
           return
         }
@@ -689,12 +700,17 @@ export class VoiceAudioEngine {
         this.stop(false, true)
         return
       }
-      if (ev.code === 1008) {
-        this.fail('auth', `close ${ev.code}`)
+      if (ev.code === 1003) {
+        this.fail('auth', ev.reason || '缺少必需的服务商配置或密钥')
         this.stop(false, true)
         return
       }
-      if (!this.isManuallyStopped && this.reconnectAttempt < this.maxReconnectAttempts) {
+      if (ev.code === 1008) {
+        this.fail('auth', ev.reason || `close ${ev.code}`)
+        this.stop(false, true)
+        return
+      }
+      if (!this.isManuallyStopped && this.reconnectAttempt < this.maxReconnectAttempts && ev.code !== 1000 && ev.code !== 1003 && ev.code !== 1008) {
         this.scheduleReconnect()
       } else {
         this.fail('unreachable', `reconnect close ${ev.code}`)
@@ -1267,10 +1283,7 @@ export class VoiceAudioEngine {
             ? msg.message
             : 'voice service error'
           this.serverErrorMessage = serverMessage
-          // Immediately transition to error state and disconnect — previously
-          // the engine only recorded the error but kept the 'listening' phase,
-          // so the user would see "Listening…" while the backend had already
-          // refused to process audio (e.g. missing API key).
+          this.isManuallyStopped = true
           this.fail('server', serverMessage)
           this.stop(false, true)
           break

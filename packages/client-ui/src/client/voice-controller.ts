@@ -70,6 +70,10 @@ export interface VoiceSpiritUiState {
   lastCall: VoiceLastCall | undefined
   /** EverMemOS state reported by the backend for the session; undefined when off. */
   memory: VoiceMemoryState | undefined
+  /** Missing credentials keys if preflight validation fails. */
+  missingCredentials?: string[] | undefined
+  /** Nonce incremented when a UI element requests the settings popover to open. */
+  openSettingsTrigger?: number | undefined
 }
 
 /** The ended call the dock keeps on screen for review and copying. */
@@ -113,6 +117,8 @@ export class VoiceSpiritController {
   private launching = false
   private lastCall: VoiceLastCall | undefined
   private lastErrorCode: VoiceEngineErrorCode | undefined
+  private missingCredentials: string[] = []
+  private openSettingsTrigger = 0
 
   constructor(private readonly settingsScope: SettingsScope<VoiceSpiritSettings>) {
     this.engine = new VoiceAudioEngine({
@@ -189,12 +195,20 @@ export class VoiceSpiritController {
       launching: this.launching,
       lastCall: this.lastCall,
       memory: this.engine.getState().memory,
+      missingCredentials: this.missingCredentials.length > 0 ? this.missingCredentials : undefined,
+      openSettingsTrigger: this.openSettingsTrigger,
     }
   }
 
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener)
     return () => { this.listeners.delete(listener) }
+  }
+
+  /** Request the UI to open the settings popover (e.g. from error action buttons). */
+  requestOpenSettings(): void {
+    this.openSettingsTrigger = Date.now()
+    this.publish()
   }
 
   /** Subscribe to high-frequency 60Hz audio levels without triggering full React re-renders. */
@@ -241,6 +255,8 @@ export class VoiceSpiritController {
     // review card.
     this.historyTurns.length = 0
     this.lastCall = undefined
+    this.missingCredentials = []
+
     const backend = this.backendClient.getSnapshot().backend
     if ((backend === undefined || !backend.healthy) && this.settings?.autoStart !== false) {
       this.launching = true
@@ -259,8 +275,24 @@ export class VoiceSpiritController {
       const missingSecrets = entry.credentials
         .filter(c => c.secret)
         .filter(c => readBackendPath(document, c.path).trim() === '')
-      if (missingSecrets.length > 0) {
-        console.warn('[ui-voicespirit] Cannot start call: missing credentials for', provider)
+      
+      const missingKeys: string[] = missingSecrets.map(c => c.labelKey)
+      if (provider === 'DashScope') {
+        const rtUrl = readBackendPath(document, 'realtime_api_urls.DashScope').trim()
+        if (rtUrl === '') {
+          missingKeys.push('credDashscopeRealtimeUrl')
+        }
+      }
+
+      if (missingKeys.length > 0) {
+        this.missingCredentials = missingKeys
+        this.lastErrorCode = 'auth'
+        const msg = provider === 'DashScope' && missingKeys.includes('credDashscopeRealtimeUrl')
+          ? '缺少 DashScope API Key 或 Realtime WebSocket 地址 (格式: wss://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/api-ws/v1/realtime)，请先配置密钥。'
+          : `缺少 ${provider} 必需的 API Key，请点击「配置密钥」进行配置。`
+        this.engine.reportPreflightError('auth', msg)
+        this.publish()
+        return
       }
     }
     // Memory rides the session handshake: resolve it from the backend's stored

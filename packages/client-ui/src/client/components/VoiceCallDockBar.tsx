@@ -110,10 +110,16 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
     ? `${t('statusReconnecting')} (${engine.reconnectAttempt}/3)…`
     : `${t('statusReconnecting')}…`
 
+  const micHint = engine.isMuted
+    ? t('micStatusMuted')
+    : snapshot.micLevel > 0.02
+    ? t('micStatusActive')
+    : t('micStatusListening')
+
   const fallbackStatusText = engine.phase === 'reconnecting'
     ? reconnectingText
     : engine.phase === 'connecting' || snapshot.launching
-    ? t('statusConnecting')
+    ? t('channelConnecting')
     : engine.phase === 'interrupted'
     ? t('statusInterrupted')
     : engine.phase === 'error'
@@ -121,13 +127,13 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
     : isTranslateMode
     ? t('liveTranslationActive')
     : isSpeaking
-    ? t('statusSpeaking')
-    : t('statusListening')
+    ? t('aiSpeakingHint')
+    : micHint
 
   const displayText = currentTranscript || fallbackStatusText
 
   return (
-    <div className={`${styles.vsDockRibbon} ${isPushToTalk ? styles.dockPushToTalkActive : ''}`}>
+    <div className={`${styles.vsDockRibbon} ${isPushToTalk ? styles.dockPushToTalkActive : ''} ${engine.phase === 'error' ? styles.vsDockRibbonError : ''}`}>
       {/* 1. Left Cluster: Status dot, Waveform, Mode toggle & Language Pill */}
       <div className={styles.vsDockLeft}>
         <span
@@ -216,16 +222,27 @@ export const VoiceCallDockBar: React.FC<VoiceCallDockBarProps> = ({
           )
         )}
 
-        {/* Inline retry if session errored */}
+        {/* Inline retry & configure buttons if session errored */}
         {engine.phase === 'error' && (
-          <button
-            type="button"
-            className={styles.actionBtn}
-            onClick={() => { void controller.startCall() }}
-            title={t('retry')}
-          >
-            {t('retry')}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <button
+              type="button"
+              className={styles.actionBtn}
+              style={{ color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.4)', background: 'rgba(239, 68, 68, 0.12)' }}
+              onClick={() => { controller.requestOpenSettings() }}
+              title={t('configureKey')}
+            >
+              ⚙️ {t('configureKey')}
+            </button>
+            <button
+              type="button"
+              className={styles.actionBtn}
+              onClick={() => { void controller.startCall() }}
+              title={t('retry')}
+            >
+              🔄 {t('retry')}
+            </button>
+          </div>
         )}
       </div>
 

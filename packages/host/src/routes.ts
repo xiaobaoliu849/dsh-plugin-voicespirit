@@ -202,7 +202,7 @@ export function registerVoiceSpiritRoutes(ctx: Context, gateway: VoiceSpiritGate
         const buffer = Buffer.concat(chunks)
         const result = await gateway.proxyRaw('/api/voices/clone', {
           method: 'POST',
-          headers: contentType ? { 'content-type': contentType } : undefined,
+          ...(contentType ? { headers: { 'content-type': contentType } } : {}),
           body: buffer,
         })
         if (!result.ok) {

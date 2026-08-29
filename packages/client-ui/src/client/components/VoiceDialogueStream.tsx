@@ -18,6 +18,7 @@ export interface VoiceDialogueStreamProps {
 
 export const VoiceDialogueStream: React.FC<VoiceDialogueStreamProps> = ({
   snapshot,
+  controller,
   t,
 }) => {
   const { engine } = snapshot
@@ -47,8 +48,27 @@ export const VoiceDialogueStream: React.FC<VoiceDialogueStreamProps> = ({
   }
 
   const isTranslateMode = snapshot.activeVoiceMode === 'translate'
+  const isError = engine.phase === 'error'
+  const errorKey = controller.errorKey()
+  const errorText = isError
+    ? (errorKey !== undefined ? t(errorKey) : t('statusError'))
+      + (engine.errorMessage ? ` — ${engine.errorMessage}` : '')
+    : ''
 
-  const hasAnyContent = snapshot.historyTurns.length > 0
+  const providerHelpText = engine.provider === 'DashScope'
+    ? t('voiceHelpDashScope')
+    : engine.provider === 'Google'
+    ? t('voiceHelpGoogle')
+    : engine.provider === 'Doubao'
+    ? t('voiceHelpDoubao')
+    : engine.provider === 'OpenAI'
+    ? t('voiceHelpOpenAI')
+    : engine.provider === 'Cartesia'
+    ? t('voiceHelpCartesia')
+    : ''
+
+  const hasAnyContent = isError
+    || snapshot.historyTurns.length > 0
     || snapshot.userText.trim().length > 0
     || snapshot.assistantText.trim().length > 0
     || snapshot.translationText.trim().length > 0
@@ -68,6 +88,52 @@ export const VoiceDialogueStream: React.FC<VoiceDialogueStreamProps> = ({
       </div>
 
       <div className={styles.dialogueMessagesList}>
+        {/* In-stream rich error diagnostic card */}
+        {isError && (
+          <div className={styles.dialogueErrorCard}>
+            <div className={styles.dialogueErrorHeader}>
+              <span>⚠️</span>
+              <span>{t('missingCredentialsTitle')} / {t('statusError')}</span>
+            </div>
+            <div className={styles.dialogueErrorMessage}>
+              {errorText}
+            </div>
+            {providerHelpText && (
+              <div style={{ fontSize: '11.5px', color: '#f59e0b', background: 'rgba(245, 158, 11, 0.08)', padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                💡 {providerHelpText}
+              </div>
+            )}
+            <div className={styles.dialogueErrorTips}>
+              <span style={{ fontWeight: 600, color: 'var(--dsw-alias-label-primary, #e5e7eb)' }}>{t('connectionTroubleshooting')}：</span>
+              <span>{t('tipCheckKeys')}</span>
+              <span>{t('tipCheckNetwork')}</span>
+              <span>{t('tipSwitchProvider')}</span>
+            </div>
+            <div className={styles.dialogueErrorActions}>
+              <button
+                type="button"
+                className={`${styles.dialogueErrorBtn} ${styles.dialogueErrorBtnPrimary}`}
+                onClick={() => { controller.requestOpenSettings() }}
+              >
+                ⚙️ {t('configureKey')}
+              </button>
+              <button
+                type="button"
+                className={styles.dialogueErrorBtn}
+                onClick={() => { void controller.startCall() }}
+              >
+                🔄 {t('retry')}
+              </button>
+              <button
+                type="button"
+                className={styles.dialogueErrorBtn}
+                onClick={() => { controller.endCall() }}
+              >
+                ✕ {t('endVoiceCall')}
+              </button>
+            </div>
+          </div>
+        )}
         {/* Completed history turns */}
         {snapshot.historyTurns.map((turn, index) => {
           const isBilingualTurn = Boolean(turn.translationText)

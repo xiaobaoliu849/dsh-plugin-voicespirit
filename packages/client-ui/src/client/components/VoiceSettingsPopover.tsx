@@ -6,7 +6,7 @@
  * card.
  */
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { VoiceSpiritController, VoiceSpiritUiState } from '../voice-controller.ts'
 import {
   PROVIDER_CATALOG,
@@ -50,9 +50,22 @@ export const VoiceSettingsPopover: React.FC<VoiceSettingsPopoverProps> = ({
   const backendPhase = snapshot.backend.backend?.phase ?? 'stopped'
   const backendHealthy = snapshot.backend.backend?.healthy ?? false
 
+  const isDashScopeMissingRt = provider === 'DashScope' && readBackendPath(document, 'realtime_api_urls.DashScope').trim() === ''
   const hasMissingSecret = entry.credentials.some(
-    spec => spec.secret && readBackendPath(document, spec.path) === ''
-  )
+    spec => spec.secret && readBackendPath(document, spec.path).trim() === ''
+  ) || isDashScopeMissingRt
+
+  // Respond to programmatic open requests from error banners
+  useEffect(() => {
+    if (snapshot.openSettingsTrigger && snapshot.openSettingsTrigger > 0) {
+      setIsOpen(true)
+      setShowCredentials(true)
+      setKeysResult(undefined)
+      void controller.getBackendClient().fetchSettings().then((loaded) => {
+        setDocument(loaded)
+      })
+    }
+  }, [snapshot.openSettingsTrigger, controller])
 
   const toggleOpen = (): void => {
     const next = !isOpen
@@ -62,9 +75,10 @@ export const VoiceSettingsPopover: React.FC<VoiceSettingsPopoverProps> = ({
       setKeysResult(undefined)
       void controller.getBackendClient().fetchSettings().then((loaded) => {
         setDocument(loaded)
+        const isDashScopeMissing = provider === 'DashScope' && readBackendPath(loaded, 'realtime_api_urls.DashScope').trim() === ''
         const missing = entry.credentials.some(
-          spec => spec.secret && readBackendPath(loaded, spec.path) === ''
-        )
+          spec => spec.secret && readBackendPath(loaded, spec.path).trim() === ''
+        ) || isDashScopeMissing
         if (missing) {
           setShowCredentials(true)
         }

@@ -124,12 +124,18 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
                   ? styles.dotReconnecting
                   : engine.phase === 'connecting' || snapshot.launching
                   ? styles.dotConnecting
+                  : engine.phase === 'error'
+                  ? styles.dotError
                   : isSpeaking
                   ? styles.dotSpeaking
                   : styles.dotListening
               }`}
             />
-            {engine.phase === 'reconnecting' ? (
+            {engine.phase === 'error' ? (
+              <span style={{ color: '#ef4444' }}>
+                ⚠️ {engine.errorMessage || t('statusError')}
+              </span>
+            ) : engine.phase === 'reconnecting' ? (
               <span style={{ color: '#fbbf24' }}>
                 {engine.reconnectAttempt
                   ? `${t('statusReconnecting')} (${engine.reconnectAttempt}/3)…`
@@ -146,6 +152,16 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {engine.phase === 'error' && (
+            <button
+              type="button"
+              className={styles.actionBtn}
+              style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.1)' }}
+              onClick={() => { controller.requestOpenSettings() }}
+            >
+              ⚙️ {t('configureKey')}
+            </button>
+          )}
           <VoiceSettingsPopover snapshot={snapshot} controller={controller} t={t} />
           <button
             type="button"
