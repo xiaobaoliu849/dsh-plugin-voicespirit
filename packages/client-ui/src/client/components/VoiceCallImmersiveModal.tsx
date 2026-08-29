@@ -87,6 +87,21 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
     if (node) node.scrollTop = node.scrollHeight
   }, [snapshot.historyTurns, snapshot.userText, snapshot.assistantText])
 
+  const cleanVoiceName = (name?: string) => {
+    if (!name) return ''
+    return name
+      .replace(/^zh_female_/, '')
+      .replace(/^zh_male_/, '')
+      .replace(/_jupiter.*$/, '')
+      .replace(/_bigtts.*$/, '')
+      .replace(/_moon.*$/, '')
+  }
+
+  const voiceDisplay = cleanVoiceName(engine.voice)
+  const providerLabel = [engine.provider, voiceDisplay]
+    .filter(part => part && part.trim() !== '')
+    .join(' · ')
+
   return (
     <div
       ref={backdropRef}
@@ -99,7 +114,7 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
       {/* Top Header */}
       <div className={styles.immersiveHeader}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: '#f3f4f6', letterSpacing: '-0.01em' }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: '#f3f4f6', letterSpacing: '-0.01em' }}>
             VoiceSpirit
           </span>
           <span className={styles.statusPill}>
@@ -125,7 +140,7 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
                 🎙️ {t('pushToTalkActive')}
               </span>
             ) : (
-              `${engine.provider} · ${engine.voice}`
+              providerLabel
             )}
           </span>
         </div>
@@ -200,8 +215,7 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
         {/* Mute Button */}
         <button
           type="button"
-          className={`${styles.actionBtn} ${engine.isMuted ? styles.actionBtnMuted : ''}`}
-          style={{ width: 44, height: 44, borderRadius: 22 }}
+          className={`${styles.immersiveActionBtn} ${engine.isMuted ? styles.immersiveActionBtnMuted : ''}`}
           onClick={() => { controller.toggleMute() }}
           title={`${engine.isMuted ? t('unmute') : t('mute')} (${t('shortcutMute')})`}
         >
@@ -226,8 +240,7 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
         {isSpeaking && (
           <button
             type="button"
-            className={styles.actionBtn}
-            style={{ width: 44, height: 44, borderRadius: 22 }}
+            className={styles.immersiveActionBtn}
             onClick={() => { controller.interrupt() }}
             title={`${t('interrupt')} (${t('shortcutInterrupt')})`}
           >
@@ -243,7 +256,7 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
         <button
           type="button"
           className={styles.hangupBtn}
-          style={{ height: 44, padding: '0 20px', borderRadius: 22, fontSize: 14 }}
+          style={{ height: 44, padding: '0 24px', fontSize: 13.5 }}
           onClick={() => {
             controller.closeImmersive()
             controller.endCall()
