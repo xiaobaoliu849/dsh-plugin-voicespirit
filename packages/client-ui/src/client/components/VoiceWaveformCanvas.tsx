@@ -66,16 +66,16 @@ export const VoiceWaveformCanvas: React.FC<VoiceWaveformCanvasProps> = ({
       const gap = Math.max(2, availableSpace / (barCount - 1))
       const centerY = height / 2
 
-      // Create gradient for bars
+      // Create gradient for bars (warm sunset & golden amber)
       const grad = ctx.createLinearGradient(0, 0, width, 0)
       if (speaking) {
-        grad.addColorStop(0, '#6366f1')
-        grad.addColorStop(0.5, '#3b82f6')
-        grad.addColorStop(1, '#60a5fa')
+        grad.addColorStop(0, '#f43f5e')
+        grad.addColorStop(0.5, '#ec4899')
+        grad.addColorStop(1, '#a855f7')
       } else {
-        grad.addColorStop(0, '#10b981')
-        grad.addColorStop(0.5, '#059669')
-        grad.addColorStop(1, '#06b6d4')
+        grad.addColorStop(0, '#f97316')
+        grad.addColorStop(0.5, '#f59e0b')
+        grad.addColorStop(1, '#fbbf24')
       }
 
       ctx.fillStyle = grad

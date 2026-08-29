@@ -37,8 +37,8 @@ export const VoiceHeroExperience: React.FC<VoiceHeroExperienceProps> = ({
             transform: `scale(${1 + activeLevel * 1.5})`,
             opacity: 0.25 + activeLevel * 0.75,
             background: isSpeaking
-              ? 'radial-gradient(circle, rgba(99, 102, 241, 0.45) 0%, rgba(59, 130, 246, 0.2) 50%, transparent 75%)'
-              : 'radial-gradient(circle, rgba(16, 185, 129, 0.45) 0%, rgba(6, 182, 212, 0.2) 50%, transparent 75%)',
+              ? 'radial-gradient(circle, rgba(244, 63, 94, 0.48) 0%, rgba(249, 115, 22, 0.25) 50%, transparent 75%)'
+              : 'radial-gradient(circle, rgba(251, 146, 60, 0.48) 0%, rgba(245, 158, 11, 0.22) 50%, transparent 75%)',
           }}
         />
         {/* Scale rides a wrapper layer: the orb's own transform is owned by
@@ -66,7 +66,7 @@ export const VoiceHeroExperience: React.FC<VoiceHeroExperienceProps> = ({
               </div>
             )}
             {turn.translationText && (
-              <div className={styles.nativeAssistantBubble} style={{ background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(59, 130, 246, 0.2) 100%)', borderColor: 'rgba(56, 189, 248, 0.35)' }}>
+              <div className={styles.nativeAssistantBubble} style={{ background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(251, 191, 36, 0.14) 100%)', borderColor: 'rgba(251, 191, 36, 0.35)', color: '#fef08a' }}>
                 <span>🌐 {turn.translationText}</span>
               </div>
             )}

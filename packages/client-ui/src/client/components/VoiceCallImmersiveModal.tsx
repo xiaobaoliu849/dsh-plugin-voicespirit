@@ -114,7 +114,7 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
       {/* Top Header */}
       <div className={styles.immersiveHeader}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: '#f3f4f6', letterSpacing: '-0.01em' }}>
+          <span className={styles.immersiveTitle}>
             VoiceSpirit
           </span>
           <span className={styles.statusPill}>
@@ -130,7 +130,7 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
               }`}
             />
             {engine.phase === 'reconnecting' ? (
-              <span style={{ color: '#f59e0b' }}>
+              <span style={{ color: '#fbbf24' }}>
                 {engine.reconnectAttempt
                   ? `${t('statusReconnecting')} (${engine.reconnectAttempt}/3)…`
                   : `${t('statusReconnecting')}…`}
@@ -178,7 +178,7 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
           <React.Fragment key={turn.id}>
             <div className={styles.userSubtitle}>{turn.userText}</div>
             {turn.translationText && (
-              <div className={styles.aiSubtitle} style={{ color: '#38bdf8' }}>
+              <div className={styles.aiSubtitle} style={{ color: '#fef08a', background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(251, 191, 36, 0.16) 100%)', borderColor: 'rgba(251, 191, 36, 0.38)' }}>
                 🌐 {turn.translationText}
               </div>
             )}
@@ -189,13 +189,13 @@ export const VoiceCallImmersiveModal: React.FC<VoiceCallImmersiveModalProps> = (
         ))}
 
         {snapshot.userText && (
-          <div className={styles.userSubtitle} style={{ opacity: snapshot.isUserInterim ? 0.7 : 1 }}>
+          <div className={styles.userSubtitle} style={{ opacity: snapshot.isUserInterim ? 0.75 : 1 }}>
             {snapshot.userText}
           </div>
         )}
 
         {snapshot.translationText && (
-          <div className={styles.aiSubtitle} style={{ color: '#38bdf8' }}>
+          <div className={styles.aiSubtitle} style={{ color: '#fef08a', background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(251, 191, 36, 0.16) 100%)', borderColor: 'rgba(251, 191, 36, 0.38)' }}>
             🌐 {snapshot.translationText}
           </div>
         )}
