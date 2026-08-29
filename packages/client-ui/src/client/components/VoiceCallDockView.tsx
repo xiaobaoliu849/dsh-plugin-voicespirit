@@ -5,10 +5,12 @@
  * 3. Immersive full-screen modal view
  *
  * When a voice call is active, data-voicespirit-active snaps the input bar down to the bottom.
- * When a voice call ends, turns seamlessly bridge into the conversation.
+ * The voice conversation stays inside the dock: hanging up never writes into
+ * the native conversation composer — voice turns belong to the voice session,
+ * not to the harness agent.
  */
 
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { VoiceSpiritController, VoiceSpiritUiState } from '../voice-controller.ts'
 import type { VoiceSpiritKey } from '../locales.ts'
 import { VoiceDialogueStream } from './VoiceDialogueStream.tsx'
@@ -19,19 +21,13 @@ import styles from './VoiceCall.module.css'
 export interface VoiceCallDockViewProps {
   controller: VoiceSpiritController
   t: (key: VoiceSpiritKey) => string
-  inputActions?: {
-    setDraft: (text: string) => void
-    submit: () => void
-  }
 }
 
 export const VoiceCallDockView: React.FC<VoiceCallDockViewProps> = ({
   controller,
   t,
-  inputActions,
 }) => {
   const [snapshot, setSnapshot] = useState<VoiceSpiritUiState>(() => controller.getSnapshot())
-  const prevLiveRef = useRef<boolean>(false)
 
   useEffect(() => {
     setSnapshot(controller.getSnapshot())
@@ -41,28 +37,6 @@ export const VoiceCallDockView: React.FC<VoiceCallDockViewProps> = ({
   const { engine } = snapshot
   const callLive = engine.phase !== 'idle' || snapshot.launching
   const hasHistory = snapshot.historyTurns.length > 0
-
-  // Automatically bridge completed voice queries into the native conversation on hangup
-  useEffect(() => {
-    const wasLive = prevLiveRef.current
-    prevLiveRef.current = callLive
-
-    // Transition from live call to ended call
-    if (wasLive && !callLive && snapshot.lastCall && snapshot.lastCall.turns.length > 0) {
-      const userQueries = snapshot.lastCall.turns
-        .map(turn => turn.userText.trim())
-        .filter(text => text.length > 0)
-
-      if (userQueries.length > 0 && inputActions?.setDraft && inputActions?.submit) {
-        const fullPrompt = userQueries.join('\n')
-        inputActions.setDraft(fullPrompt)
-        window.setTimeout(() => {
-          inputActions.submit()
-        }, 60)
-      }
-      controller.dismissLastCall()
-    }
-  }, [callLive, snapshot.lastCall, inputActions, controller])
 
   return (
     <div

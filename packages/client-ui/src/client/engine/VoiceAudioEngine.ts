@@ -1152,11 +1152,24 @@ export class VoiceAudioEngine {
             const incoming = msg.text ?? msg.source_text ?? ''
             const isInterim = msg.interim ?? false
 
-            // If assistant had already replied in the current turn and new user speech arrived,
-            // or if turn_id changed, commit the previous completed turn
+            // Decide turn boundaries from the interim flag, never from turn_id.
+            // Backends disagree about turn_id: Doubao's duplex ASR tags interim
+            // snapshots with the PREVIOUS turn's id and only assigns the real
+            // one at `completed`, so "turn_id changed" means the same utterance
+            // was just finalized — committing there splits one utterance into
+            // two history turns (the interim preview as a user-only bubble,
+            // then the same text again with the reply).
+            //
+            // What actually ends a turn is either the assistant having spoken,
+            // or a new utterance starting after the previous one was finalized
+            // and left unanswered (the model is still searching and the user
+            // speaks again) — that one must be committed, not overwritten.
             const hasPendingReply = this.currentAssistantText.trim().length > 0 || this.currentTranslationText.trim().length > 0
-            const turnChanged = Boolean(msg.turn_id && this.currentTurnId && msg.turn_id !== this.currentTurnId)
-            if ((!isInterim && hasPendingReply) || turnChanged) {
+            const pendingUserText = this.currentUserText.trim()
+            const startsNewUtterance = pendingUserText !== ''
+              && !this.isUserInterim
+              && incoming.trim() !== pendingUserText
+            if (hasPendingReply || startsNewUtterance) {
               this.commitTurnIfPending(msg.turn_id)
             }
 
