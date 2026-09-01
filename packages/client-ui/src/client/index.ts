@@ -7,10 +7,11 @@
  * quick settings popover, settings card) reads through it, so provider,
  * credentials, and backend phase can never disagree between them.
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { VoiceSettingsCard } from './components/VoiceSettingsCard.tsx'
@@ -31,7 +32,7 @@ const NS = 'voicespirit'
 
 export const inject = ['slots', 'locale', 'settingsScope']
 
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-voicespirit: dictionaries')
   const t = ctx.locale.bind(NS)
 

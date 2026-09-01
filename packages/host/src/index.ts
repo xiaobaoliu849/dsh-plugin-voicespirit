@@ -10,6 +10,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-host-webserver'
+import type {} from '@deepseek-ai/dsh-settings'
 import { registerVoiceSpiritRoutes } from './routes.ts'
 import {
   VOICESPIRIT_NAMESPACE,

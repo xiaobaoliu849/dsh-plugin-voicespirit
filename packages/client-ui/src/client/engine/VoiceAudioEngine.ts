@@ -284,10 +284,10 @@ class VoiceAudioProcessor extends AudioWorkletProcessor {
     this.inputSampleRate = 48000
     this.targetSampleRate = 16000
     this.isMuted = false
-    this.vadEnabled = true
+    this.vadEnabled = false
     this.buffer = []
-    this.noiseFloor = 0.005
-    this.minThreshold = 0.012
+    this.noiseFloor = 0.002
+    this.minThreshold = 0.004
     this.hangoverFrames = 0
     this.hangoverMaxFrames = 12 // ~380ms at 512 samples per frame (32ms per frame)
     this.silenceHeartbeatCounter = 0
@@ -299,7 +299,7 @@ class VoiceAudioProcessor extends AudioWorkletProcessor {
       if (data.type === 'set_muted') {
         this.isMuted = Boolean(data.muted)
       } else if (data.type === 'set_vad') {
-        this.vadEnabled = data.enabled !== false
+        this.vadEnabled = Boolean(data.enabled)
         if (typeof data.minThreshold === 'number') {
           this.minThreshold = data.minThreshold
         }
@@ -1011,7 +1011,7 @@ export class VoiceAudioEngine {
         })
         this.micWorkletNode.port.postMessage({
           type: 'set_vad',
-          enabled: this.options.vadEnabled !== false,
+          enabled: this.options.vadEnabled === true,
         })
         this.micWorkletNode.port.onmessage = (event) => {
           const data = event.data
@@ -1041,7 +1041,7 @@ export class VoiceAudioEngine {
     this.micProcessor = this.audioCtx.createScriptProcessor(bufferSize, 1, 1)
     const inputSampleRate = this.audioCtx.sampleRate
     const targetSampleRate = 16000
-    const vadEnabled = this.options.vadEnabled !== false
+    const vadEnabled = this.options.vadEnabled === true
     const hangoverMaxFrames = 3 // ~380ms at 4096 samples (85ms per frame)
     const silenceHeartbeatInterval = 18 // ~1.5s
 

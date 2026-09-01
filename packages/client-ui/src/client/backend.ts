@@ -8,7 +8,7 @@
 import {
   createSnapshotStore,
   type SnapshotStore,
-} from '@deepseek-ai/dsh-client-runtime/client'
+} from '@deepseek-ai/dsh-client-store'
 import type {
   BackendSettingsDocument, BackendStatus, VoiceSpiritStatusResponse,
 } from './contract/settings.ts'

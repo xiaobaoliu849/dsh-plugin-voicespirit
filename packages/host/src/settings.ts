@@ -7,13 +7,12 @@
  */
 
 import z from '@deepseek-ai/schemastery'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 
 /** Settings namespace owned by the VoiceSpirit host plugin. */
 export const VOICESPIRIT_SETTINGS_NAMESPACE = 'voicespirit'
 
 /** Branded namespace handle for the settings provider API. */
-export const VOICESPIRIT_NAMESPACE = settingsNamespace(VOICESPIRIT_SETTINGS_NAMESPACE)
+export const VOICESPIRIT_NAMESPACE = 'voicespirit'
 
 /** Realtime providers the backend's voice-chat WebSocket whitelist accepts. */
 export const VOICESPIRIT_PROVIDERS = [

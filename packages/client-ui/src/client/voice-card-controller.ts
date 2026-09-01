@@ -6,7 +6,8 @@
  * credential drafts through the host proxy; nothing commits as it is typed.
  */
 
-import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { VoiceSpiritBackend } from './backend.ts'
 import {
   providerEntry,
@@ -208,7 +209,7 @@ export class VoiceSettingsCardController {
   private loadingLog = false
 
   constructor(
-    private readonly settingsScope: import('@deepseek-ai/dsh-client-runtime/client').SettingsScope<VoiceSpiritSettings>,
+    private readonly settingsScope: SettingsScope<VoiceSpiritSettings>,
     private readonly backendClient: VoiceSpiritBackend,
   ) {
     this.store = createSnapshotStore<VoiceSettingsCardState>(this.projection())
