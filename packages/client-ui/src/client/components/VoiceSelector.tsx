@@ -117,7 +117,7 @@ export const VoiceSelector: React.FC<VoiceSelectorProps> = ({
 
     // 1. Instant 0ms playback if pre-rendered preset sample is available
     const presetSample = PRESET_VOICE_SAMPLES[voice.id]
-    
+
     // 2. Fallback to live backend TTS proxy for custom/fine-tuned IDs
     let engine = 'edge'
     const normProvider = provider.toLowerCase()

@@ -34,9 +34,6 @@
     },
     {
       "path": "../ui-settings-plugins"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
     }
   ]
 }
